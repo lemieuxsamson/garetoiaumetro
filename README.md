@@ -26,6 +26,19 @@ Limites : les libellés de panneaux sont interprétés automatiquement; les opé
 
 Domaine personnalisé : le fichier `CNAME` publie le site à **https://garetoiaumetro.lemieuxsamson.com**. Côté DNS, un enregistrement `CNAME` `garetoiaumetro` → `<utilisateur>.github.io`; ensuite, cocher *Enforce HTTPS* dans *Settings → Pages*.
 
+## Street View intégré (clé Google)
+
+Sans clé, les boutons Street View ouvrent Google Maps dans un nouvel onglet. Avec une clé, Street View s'affiche sous la carte, orienté vers le côté de rue choisi.
+
+1. Dans la [console Google Cloud](https://console.cloud.google.com/), créer un projet et y activer **Maps Embed API** (gratuite et sans limite d'utilisation; Google exige tout de même un compte de facturation sur le projet).
+2. *APIs et services → Identifiants → Créer une clé API*.
+3. Restreindre la clé, c'est essentiel puisqu'elle sera visible dans le code source :
+   - *Restrictions d'application* : **Sites Web (référents HTTP)**, avec `https://garetoiaumetro.lemieuxsamson.com/*` (et `http://localhost:*/*` pour les tests locaux);
+   - *Restrictions d'API* : **Maps Embed API** seulement.
+4. Coller la clé dans `index.html`, ligne `const GMAPS_EMBED_KEY='';`.
+
+Ainsi restreinte, la clé ne fonctionne que sur ce domaine et que pour l'API Embed, qui ne génère aucun frais : on peut la publier sans risque.
+
 ## Mise à jour des données
 
 Automatique : le workflow `.github/workflows/maj-donnees.yml` télécharge les deux jeux de données chaque lundi, reconstruit `data.json` et le publie s'il a changé. Pour le lancer à la main : onglet *Actions → Mise à jour des données → Run workflow*.

@@ -55,6 +55,17 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .zone b{font:600 17px/1.2 "Barlow Condensed",sans-serif}
 .meta{font-size:13px;color:var(--soft)}
 .nav{display:flex;gap:6px;flex-wrap:wrap}
+.nav button.sv{font:600 13px "Barlow",sans-serif;border:1.5px solid #F2B233;background:#FFF6DF;color:#5A4200;border-radius:6px;padding:4px 9px;cursor:pointer}
+.svbox{position:absolute;left:0;right:0;bottom:0;height:55%;background:var(--panel);border-top:1px solid var(--line);display:none;grid-template-rows:auto 1fr;z-index:5;box-shadow:0 -6px 20px rgba(0,0,0,.15)}
+.svbox.on{display:grid}
+.svbar{display:flex;align-items:center;gap:8px;padding:6px 10px;flex-wrap:wrap}
+.svbar b{font:600 16px "Barlow Condensed",sans-serif;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.svbar button,.svbar a{font:600 13px "Barlow",sans-serif;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;padding:3px 8px;cursor:pointer;text-decoration:none}
+.svbar button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.svbar .x{border:0;background:none;font-size:22px;line-height:1;padding:0 4px;color:var(--soft)}
+.svbox iframe{width:100%;height:100%;border:0;display:block}
+@media(max-width:899px){.svbox{height:62%}}
+.svcone{width:44px;height:44px;pointer-events:none}
 .nav a.sv{border-color:#F2B233;background:#FFF6DF;color:#5A4200}
 .nav a{font:600 13px "Barlow",sans-serif;color:var(--ink);text-decoration:none;border:1.5px solid var(--line);border-radius:6px;padding:4px 9px;background:var(--paper)}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -92,7 +103,9 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
   <div class="tally" id="tally" aria-live="polite" title="Longueur de bordure, les deux côtés de rue"></div>
   <div class="only-desk" id="deskSlot"></div>
  </aside>
- <div id="map"><div class="loading" id="loading">Chargement de la carte…</div></div>
+ <div id="map"><div class="loading" id="loading">Chargement de la carte…</div>
+  <div class="svbox" id="svbox" role="region" aria-label="Street View"><div class="svbar"><b id="svtitle"></b><span id="svsides"></span><a id="svext" target="_blank" rel="noopener">Ouvrir dans Google Maps</a><button class="x" aria-label="Fermer Street View" id="svclose">×</button></div><iframe id="sviframe" title="Street View" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+ </div>
  <section class="side bottom" id="mobSlot"></section>
 </div>
 
@@ -109,6 +122,8 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
+// Clé Google Maps « Maps Embed API » (voir README). Vide = Street View s'ouvre dans Google Maps.
+const GMAPS_EMBED_KEY='';
 const STYLE='https://tiles.openfreemap.org/styles/positron';
 const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
 const LAB={0:'Libre (panneaux vérifiés)',4:'Sans panneau, libre probable',1:'Gratuit, durée limitée',2:'Tarifé',3:'Interdit ou réservé',5:'Non évalué'};
@@ -125,7 +140,9 @@ function links(lat,lon,extra){ const ll=`${lat.toFixed(6)},${lon.toFixed(6)}`;
   return `<div class="nav"><a href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving" target="_blank" rel="noopener">Google Maps</a><a href="https://maps.apple.com/?daddr=${ll}&dirflg=d" target="_blank" rel="noopener">Plans</a><a href="https://waze.com/ul?ll=${ll}&navigate=yes" target="_blank" rel="noopener">Waze</a>${extra||''}</div>`}
 function heading(tr,sd){ const iv=tr.sides[1].iv.length?tr.sides[1].iv:tr.sides[-1].iv; const a=iv[0].co[0], b=iv[iv.length-1].co[iv[iv.length-1].co.length-1];
   const gx=(b[0]-a[0])*Math.cos(a[1]*Math.PI/180), gy=b[1]-a[1]; let h=Math.atan2(-gy,gx)*180/Math.PI; if(sd===-1) h+=180; return Math.round((h+360)%360) }
-function sv(lat,lon,h,label){ return `<a class="sv" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80" target="_blank" rel="noopener">${label||'Street View'}</a>` }
+function svUrl(lat,lon,h){ return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80` }
+function sv(lat,lon,h,label,ti,sd){ if(GMAPS_EMBED_KEY) return `<button type="button" class="sv" data-lat="${lat}" data-lon="${lon}" data-h="${h}" data-ti="${ti}" data-sd="${sd}">${label||'Street View'}</button>`;
+  return `<a class="sv" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80" target="_blank" rel="noopener">${label||'Street View'}</a>` }
 function entre(t){const e=t.e.filter(Boolean); if(e.length===2&&e[0]!==e[1]) return `entre ${e[0]} et ${e[1]}`; if(e.length) return `près de l'intersection avec ${e[0]}`; return ''}
 const distM=(lat,lon,s)=>Math.hypot((lon-s.lon)*K*Math.cos(s.lat*Math.PI/180),(lat-s.lat)*K);
 function circle(s,r){const out=[];for(let i=0;i<=72;i++){const a=i/72*2*Math.PI; out.push([s.lon+Math.cos(a)*r/(K*Math.cos(s.lat*Math.PI/180)), s.lat+Math.sin(a)*r/K])} return out}
@@ -178,9 +195,9 @@ function render(fly){
   cand.sort((a,b)=>a.score-b.score);
   const seen=new Set(), zones=[]; for(const z of cand){ if(seen.has(z.tr.t.n)||zones.length>=8) continue; seen.add(z.tr.t.n); zones.push(z) }
   window._zones=zones;
-  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0],sv(z.pt[1],z.pt[0],heading(tr,z.sd),'Street View du côté '+S_.name))}</li>`}).join('')
+  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0],sv(z.pt[1],z.pt[0],heading(tr,z.sd),'Street View du côté '+S_.name,tr.i,z.sd))}</li>`}).join('')
     :`<li class="empty">Aucune rue nettement favorable dans ce rayon pour cette plage. Essayez un rayon plus grand ou une autre plage horaire.</li>`;
-  [...$('zones').querySelectorAll('.zone')].forEach(el=>{const f=e=>{ if(e.target.closest('a')) return; const z=zones[+el.dataset.i]; zoneSel=z.tr.i; select(z.tr.i,z.pt) }; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter')f(e)}});
+  [...$('zones').querySelectorAll('.zone')].forEach(el=>{const f=e=>{ if(e.target.closest('a,button')) return; const z=zones[+el.dataset.i]; zoneSel=z.tr.i; select(z.tr.i,z.pt) }; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter')f(e)}});
   // carte
   if(map&&map.getSource('p')){
     map.getSource('p').setData({type:'FeatureCollection',features:FEAT.filter(f=>TRS[f.ti].dist<=R+250).map(f=>({type:'Feature',properties:{s:f.s,o:f.side===1?-1:1,ti:f.ti,in:TRS[f.ti].dist<=R?1:0},geometry:{type:'LineString',coordinates:f.co}}))});
@@ -206,8 +223,29 @@ function sheet(){
     const rows=[...rs].sort((a,b)=>ACT[b[0]]-ACT[a[0]]).map(([i,len])=>{const r=D.rules[i],on=ACT[i]; return `<li class="${on?'':'off'}"><i class="dot" style="background:${on?COL[sev(r.c)]:'var(--line)'}"></i><span>${r.t} <span class="len">(${Math.round(len)} m${on?'':', ne s\'applique pas'})</span></span></li>`}).join('');
     return `<div class="sd"><b style="color:${col}">Côté ${S_.name} : ${head}</b><ul>${rows}</ul></div>` }).join('');
   const m=trMid(tr);
-  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0],[1,-1].filter(sd=>tr.sides[sd].iv.length).map(sd=>sv(m[1],m[0],heading(tr,sd),'Street View côté '+tr.sides[sd].name)).join(''))}`;
+  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0],[1,-1].filter(sd=>tr.sides[sd].iv.length).map(sd=>sv(m[1],m[0],heading(tr,sd),'Street View côté '+tr.sides[sd].name,tr.i,sd)).join(''))}`;
 }
+
+// ---------- Street View intégré ----------
+let svMarker=null;
+function openSV(lat,lon,h,ti,sd){
+  const tr=TRS[ti];
+  $('svtitle').textContent=`${tr.t.n}, côté ${tr.sides[sd].name}`;
+  $('sviframe').src=`https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(GMAPS_EMBED_KEY)}&location=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80`;
+  $('svext').href=svUrl(lat,lon,h);
+  $('svsides').innerHTML=[1,-1].filter(s=>tr.sides[s].iv.length).map(s=>`<button type="button" data-s="${s}" aria-pressed="${s===sd}">${tr.sides[s].name}</button>`).join(' ');
+  $('svsides').querySelectorAll('button').forEach(b=>b.onclick=()=>openSV(lat,lon,heading(tr,+b.dataset.s),ti,+b.dataset.s));
+  $('svbox').classList.add('on');
+  if(map){
+    if(!svMarker){ const el=document.createElement('div'); el.innerHTML='<svg class="svcone" viewBox="-22 -22 44 44"><path d="M0 0 L-12 -20 A23 23 0 0 1 12 -20 Z" fill="#F2B233" fill-opacity=".55" stroke="#B07A00" stroke-width="1.5"/><circle r="6" fill="#F2B233" stroke="#fff" stroke-width="2.5"/></svg>'; svMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'}) }
+    svMarker.setLngLat([lon,lat]).setRotation(h).addTo(map);
+    map.easeTo({center:[lon,lat],zoom:Math.max(map.getZoom(),17),padding:{bottom:$('map').clientHeight*0.55},duration:600});
+  }
+  if(window.matchMedia('(max-width:899px)').matches) $('map').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeSV(){ $('svbox').classList.remove('on'); $('sviframe').src='about:blank'; if(svMarker) svMarker.remove(); if(map) map.easeTo({padding:{bottom:0},duration:400}) }
+document.addEventListener('click',e=>{ const b=e.target.closest('button.sv'); if(!b) return; e.stopPropagation(); openSV(+b.dataset.lat,+b.dataset.lon,+b.dataset.h,+b.dataset.ti,+b.dataset.sd) });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('svbox').classList.contains('on')) closeSV() });
 
 // ---------- carte ----------
 function initMap(){
@@ -253,6 +291,7 @@ function initMap(){
   D.stations.forEach((s,i)=>{const b=document.createElement('button');b.textContent=s.n;b.onclick=()=>{st=i;sel=null;zoneSel=null;render(true)};$('stations').appendChild(b)});
   ['date','t1','t2'].forEach(id=>$(id).addEventListener('change',()=>render(false)));
   $('rad').addEventListener('change',()=>render(true));
+  $('svclose').onclick=closeSV;
   initMap();
 })();
 </script>
