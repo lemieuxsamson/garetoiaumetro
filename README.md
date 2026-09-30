@@ -20,24 +20,25 @@ Limites : les libellés de panneaux sont interprétés automatiquement; les opé
 
 ## Mise en ligne avec GitHub Pages
 
-1. Créer un dépôt et y mettre le contenu de ce dossier (glisser-déposer via *Add file → Upload files*, ou `git push`).
-2. *Settings → Pages* : source *Deploy from a branch*, branche `main`, dossier `/ (root)`.
-3. Le site est publié à `https://<utilisateur>.github.io/<dépôt>/`.
-
-Domaine personnalisé : le fichier `CNAME` publie le site à **https://garetoiaumetro.lemieuxsamson.com**. Côté DNS, un enregistrement `CNAME` `garetoiaumetro` → `<utilisateur>.github.io`; ensuite, cocher *Enforce HTTPS* dans *Settings → Pages*.
+1. Créer le dépôt et y mettre le contenu de ce dossier.
+2. *Settings → Pages → Build and deployment → Source* : **GitHub Actions**.
+3. *Settings → Pages → Custom domain* : `garetoiaumetro.lemieuxsamson.com`, puis *Enforce HTTPS*. Côté DNS : enregistrement `CNAME` `garetoiaumetro` → `<utilisateur>.github.io`.
+4. Chaque `push` sur `main` déclenche `.github/workflows/deploy.yml`, qui assemble le site et le publie.
 
 ## Street View intégré (clé Google)
 
 Sans clé, les boutons Street View ouvrent Google Maps dans un nouvel onglet. Avec une clé, Street View s'affiche sous la carte, orienté vers le côté de rue choisi.
 
-1. Dans la [console Google Cloud](https://console.cloud.google.com/), créer un projet et y activer **Maps Embed API** (gratuite et sans limite d'utilisation; Google exige tout de même un compte de facturation sur le projet).
-2. *APIs et services → Identifiants → Créer une clé API*.
-3. Restreindre la clé, c'est essentiel puisqu'elle sera visible dans le code source :
-   - *Restrictions d'application* : **Sites Web (référents HTTP)**, avec `https://garetoiaumetro.lemieuxsamson.com/*` (et `http://localhost:*/*` pour les tests locaux);
+1. Console Google Cloud : activer **Maps Embed API** sur un projet (gratuite; un compte de facturation est tout de même exigé).
+2. Créer une clé API et la **restreindre** :
+   - *Sites Web (référents HTTP)* : `https://garetoiaumetro.lemieuxsamson.com/*` et `http://localhost:*/*`;
    - *Restrictions d'API* : **Maps Embed API** seulement.
-4. Coller la clé dans `index.html`, ligne `const GMAPS_EMBED_KEY='';`.
+3. Dans le dépôt : *Settings → Secrets and variables → Actions → New repository secret*, nom `GMAPS_EMBED_KEY`, valeur = la clé.
+4. Relancer le déploiement (*Actions → Déploiement → Run workflow*).
 
-Ainsi restreinte, la clé ne fonctionne que sur ce domaine et que pour l'API Embed, qui ne génère aucun frais : on peut la publier sans risque.
+La clé n'est jamais commitée : `config.js` est généré au déploiement. Elle reste toutefois visible dans le navigateur des visiteurs (c'est inévitable pour un site statique); ce sont les restrictions ci-dessus qui la protègent.
+
+Test local : copier `config.example.js` en `config.js` (ignoré par git), y mettre la clé, puis `python3 -m http.server` et ouvrir `http://localhost:8000`.
 
 ## Mise à jour des données
 

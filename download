@@ -18,3 +18,8 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Configuration locale et secrets
+config.js
+.env
+.env.*

@@ -1,0 +1,44 @@
+name: Déploiement
+
+on:
+  push:
+    branches: [main]
+  workflow_run:                      # après la mise à jour hebdomadaire des données
+    workflows: ["Mise à jour des données"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Assembler le site
+        env:
+          GMAPS_EMBED_KEY: ${{ secrets.GMAPS_EMBED_KEY }}
+        run: |
+          mkdir _site
+          cp index.html data.json _site/
+          [ -f CNAME ] && cp CNAME _site/
+          python3 -c "import json,os; print('window.APP_CONFIG = ' + json.dumps({'GMAPS_EMBED_KEY': os.environ.get('GMAPS_EMBED_KEY','')}) + ';')" > _site/config.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
