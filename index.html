@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stationnement gratuit probable près du métro</title>
+<meta name="description" content="Carte des rues où le stationnement est probablement gratuit et permis, selon la date et l'heure, autour des stations de la ligne verte Est à Montréal.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🅿️</text></svg>">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F3F5F2; --panel:#FFFFFF; --ink:#16201A; --soft:#56625A; --line:#D5DCD6;
+  --libre:#1C9A55; --nosign:#7CC79C; --limite:#D6931A; --tarife:#2F6BD6; --interdit:#CC3A2F; --na:#B4BCB6;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --paper:#111814; --panel:#18211C; --ink:#E6ECE7; --soft:#9AA79E; --line:#2B3630; }
+}
+:root[data-theme="dark"]{ --paper:#111814; --panel:#18211C; --ink:#E6ECE7; --soft:#9AA79E; --line:#2B3630; }
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 "Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{display:grid;grid-template-rows:auto 62vh auto;min-height:100%}
+@media(min-width:900px){.app{grid-template-columns:400px 1fr;grid-template-rows:100vh;height:100vh}}
+.side{padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));display:grid;gap:14px;align-content:start}
+@media(min-width:900px){.side{overflow-y:auto;border-right:1px solid var(--line)}}
+.side.bottom{padding-top:16px}
+@media(min-width:900px){.side.bottom{display:none}}
+@media(max-width:899px){.side .only-desk{display:none}}
+h1{font:700 27px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;margin:0 0 4px}
+.lede{margin:0;color:var(--soft);font-size:14px}
+.stations{display:flex;gap:6px;flex-wrap:wrap}
+.stations button{border:1.5px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;font:600 16px "Barlow Condensed",sans-serif;cursor:pointer}
+.stations button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.row{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+label{display:grid;gap:3px;font-size:13px;color:var(--soft)}
+input,select{font:500 15px "Barlow",sans-serif;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px;width:100%;min-width:0}
+.inline{display:flex;align-items:center;gap:8px}.inline select{width:auto}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2.5px solid var(--tarife);outline-offset:2px}
+.err{color:var(--interdit);font-size:14px;margin:0}.err:empty{display:none}
+.tally{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px}
+.tally span,.legend span{display:inline-flex;align-items:center;gap:7px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;color:var(--soft)}
+.legend i{width:20px;height:5px;border-radius:3px;flex:0 0 auto}
+#map{position:relative;min-height:320px}
+h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
+.zones{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.zone{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:5px;cursor:pointer}
+.zone[aria-current="true"]{border-color:var(--libre);box-shadow:inset 3px 0 0 var(--libre)}
+.zone .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.zone b{font:600 17px/1.2 "Barlow Condensed",sans-serif}
+.meta{font-size:13px;color:var(--soft)}
+.nav{display:flex;gap:6px;flex-wrap:wrap}
+.nav a{font:600 13px "Barlow",sans-serif;color:var(--ink);text-decoration:none;border:1.5px solid var(--line);border-radius:6px;padding:4px 9px;background:var(--paper)}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.sheet:empty{display:none}
+.sheet .close{float:right;border:0;background:none;color:var(--soft);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+.sheet ul{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:5px}
+.sheet li{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.sheet li .dot{margin-top:6px}.sheet .off{color:var(--soft)}
+.len{color:var(--soft);font-size:12px}
+.sd{margin:4px 0 6px}.sd b{font-weight:600}
+.note{font-size:12.5px;color:var(--soft);margin:0}.note a{color:inherit}
+.empty{font-size:14px;color:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:12px}
+.st-marker{width:18px;height:18px;border-radius:50%;background:#16201A;border:4px solid #fff;box-shadow:0 0 0 1.5px #16201A;cursor:pointer}
+.st-marker.on{width:24px;height:24px;border-width:6px}
+.st-label{font:700 15px "Barlow Condensed",sans-serif;color:#16201A;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;transform:translate(16px,-14px)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:14px}
+</style>
+</head>
+<body>
+<div class="app">
+ <aside class="side" id="panel">
+  <header>
+   <h1>Où se garer gratuitement près du métro</h1>
+   <p class="lede">Ligne verte, d'Honoré-Beaugrand à L'Assomption. Chaque côté de rue est coloré selon ce que ses panneaux permettent pendant votre plage horaire.</p>
+  </header>
+  <div class="stations" role="group" aria-label="Station" id="stations"></div>
+  <div class="row">
+   <label>Date<input type="date" id="date"></label>
+   <label>De<input type="time" id="t1" step="900"></label>
+   <label>À<input type="time" id="t2" step="900"></label>
+  </div>
+  <label class="inline">Rayon de marche
+   <select id="rad"><option value="400">400 m (5 min)</option><option value="600">600 m (8 min)</option><option value="900" selected>900 m (11 min)</option></select></label>
+  <p class="err" id="err" role="alert"></p>
+  <div class="tally" id="tally" aria-live="polite" title="Longueur de bordure, les deux côtés de rue"></div>
+  <div class="only-desk" id="deskSlot"></div>
+ </aside>
+ <div id="map"><div class="loading" id="loading">Chargement de la carte…</div></div>
+ <section class="side bottom" id="mobSlot"></section>
+</div>
+
+<template id="lower">
+  <div class="sheet" id="sheet" aria-live="polite"></div>
+  <section>
+   <h2>Rues les plus prometteuses</h2>
+   <ul class="zones" id="zones"></ul>
+  </section>
+  <div class="legend" id="legend"></div>
+  <p class="note">Chaque côté de rue est évalué portion par portion, en suivant les flèches des panneaux. Un côté sans panneau répertorié est normalement permis, mais les données peuvent être incomplètes. Déneigement non inclus : vérifiez Info-Neige l'hiver. « Jours d'école » est approximé à lun.-ven., sept. à juin.</p>
+  <p class="note">Données : Ville de Montréal, <a href="https://donnees.montreal.ca/dataset/stationnement-sur-rue-signalisation-courant" target="_blank" rel="noopener">Signalisation (stationnement sur rue)</a> et <a href="https://donnees.montreal.ca/dataset/geobase" target="_blank" rel="noopener">Géobase</a>, licence CC BY 4.0, extrait du <span id="gen"></span>. Fond de carte : OpenFreeMap, OpenMapTiles, © contributeurs OpenStreetMap. Outil personnel non officiel : fiez-vous toujours à la signalisation sur place.</p>
+</template>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const STYLE='https://tiles.openfreemap.org/styles/positron';
+const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
+const LAB={0:'Libre (panneaux vérifiés)',4:'Sans panneau, libre probable',1:'Gratuit, durée limitée',2:'Tarifé',3:'Interdit ou réservé',5:'Non évalué'};
+const $=id=>document.getElementById(id);
+const K=111320;
+let D, map, st=2, sel=null, zoneSel=null, ACT=[], TRS=[], FEAT=[], markers=[];
+const pad=n=>String(n).padStart(2,'0');
+const toMin=v=>{const [h,m]=v.split(':').map(Number);return h*60+m};
+const fmtD=d=>d>=60?(d/60)+' h':d+' min';
+function monthOk(m,d){ if(!m) return true; const v=(d.getMonth()+1)*100+d.getDate(), a=m[0]*100+m[1], b=m[2]*100+m[3]; return a<=b?(v>=a&&v<=b):(v>=a||v<=b) }
+function active(r,wd,S,E){ for(const [a,b,days] of r.w){ if(!days.includes(wd)) continue; for(const [x,y] of (a<b?[[a,b]]:[[a,1440],[0,b]])) if(x<E&&y>S) return true } return false }
+const sev=c=>c==='limite'?1:c==='tarife'?2:3;
+function links(lat,lon){ const ll=`${lat.toFixed(6)},${lon.toFixed(6)}`;
+  return `<div class="nav"><a href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving" target="_blank" rel="noopener">Google Maps</a><a href="https://maps.apple.com/?daddr=${ll}&dirflg=d" target="_blank" rel="noopener">Plans</a><a href="https://waze.com/ul?ll=${ll}&navigate=yes" target="_blank" rel="noopener">Waze</a></div>`}
+function entre(t){const e=t.e.filter(Boolean); if(e.length===2&&e[0]!==e[1]) return `entre ${e[0]} et ${e[1]}`; if(e.length) return `près de l'intersection avec ${e[0]}`; return ''}
+const distM=(lat,lon,s)=>Math.hypot((lon-s.lon)*K*Math.cos(s.lat*Math.PI/180),(lat-s.lat)*K);
+function circle(s,r){const out=[];for(let i=0;i<=72;i++){const a=i/72*2*Math.PI; out.push([s.lon+Math.cos(a)*r/(K*Math.cos(s.lat*Math.PI/180)), s.lat+Math.sin(a)*r/K])} return out}
+
+// ---------- état ↔ URL ----------
+function readHash(){ const p=new URLSearchParams(location.hash.slice(1)); if(p.has('s')) st=Math.min(4,Math.max(0,+p.get('s')||0));
+  if(p.get('d')) $('date').value=p.get('d'); if(p.get('de')) $('t1').value=p.get('de'); if(p.get('a')) $('t2').value=p.get('a'); if(p.get('r')) $('rad').value=p.get('r') }
+function writeHash(){ const p=new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
+
+// ---------- calcul ----------
+function compute(){
+  const s=D.stations[st], R=+$('rad').value, S=toMin($('t1').value||'00:00'), E=toMin($('t2').value||'23:59');
+  const [y,mo,da]=($('date').value||'').split('-').map(Number); const d=new Date(y,mo-1,da); const wd=(d.getDay()+6)%7;
+  $('err').textContent=isNaN(d)?'Choisissez une date.':!(E>S)?'L\'heure de fin doit suivre l\'heure de début, le même jour.':'';
+  const E2=Math.max(E,S+1);
+  ACT=D.rules.map(r=>r.c!=='info'&&monthOk(r.m,d)&&active(r,wd,S,E2));
+  TRS=D.tr.map((t,i)=>({t,i,dist:Infinity,sides:{1:{iv:[]},'-1':{iv:[]}}}));
+  FEAT=D.f.map(([ti,side,t0,t1,rs,uns,co],fi)=>{
+    const tr=TRS[ti], evalClass=tr.t.k===0||tr.t.k===5; let s_=0,dur=null;
+    if(uns) s_=evalClass?4:5;
+    else if(!rs.length&&!evalClass) s_=5;
+    else for(const i of rs) if(ACT[i]){const v=sev(D.rules[i].c); s_=Math.max(s_,v); if(v===1) dur=dur==null?D.rules[i].d:Math.min(dur,D.rules[i].d)}
+    for(const [lo,la] of co){ const dd=distM(la,lo,s); if(dd<tr.dist) tr.dist=dd }
+    const f={fi,ti,side,t0,t1,rs,uns,co,s:s_,dur}; tr.sides[side].iv.push(f); return f });
+  for(const tr of TRS) for(const sd of [1,-1]){ const S_=tr.sides[sd]; S_.name=sd===1?tr.t.ln:tr.t.rn; S_.signed=!S_.iv.some(v=>v.uns);
+    S_.free=S_.iv.filter(v=>v.s===0).reduce((a,v)=>a+v.t1-v.t0,0);
+    let best=null,cur=null; for(const v of S_.iv){ if(v.s===0){ if(cur&&Math.abs(cur.t1-v.t0)<1){cur.t1=v.t1;cur.parts.push(v)} else cur={t0:v.t0,t1:v.t1,parts:[v]}; if(!best||cur.t1-cur.t0>best.t1-best.t0) best={...cur,parts:[...cur.parts]} } else cur=null }
+    S_.run=best }
+  return {s,R};
+}
+function midOf(parts){ const co=parts.flatMap(p=>p.co); return co[Math.floor(co.length/2)] }
+function trMid(tr){ return midOf(tr.sides[1].iv.length?tr.sides[1].iv:tr.sides[-1].iv) }
+
+// ---------- rendu ----------
+function render(fly){
+  if(!D) return;
+  writeHash();
+  const {s,R}=compute();
+  [...$('stations').children].forEach((c,j)=>c.setAttribute('aria-pressed',j===st));
+  markers.forEach((m,j)=>m.getElement().querySelector('.st-marker').classList.toggle('on',j===st));
+  const inR=TRS.filter(t=>t.dist<=R);
+  const tot={0:0,1:0,2:0,3:0,4:0,5:0}; inR.forEach(t=>[1,-1].forEach(sd=>t.sides[sd].iv.forEach(v=>tot[v.s]+=v.t1-v.t0)));
+  const km=k=>(tot[k]/1000).toFixed(1).replace('.',',');
+  $('tally').innerHTML=[0,4,1,3].map(k=>`<span><i class="dot" style="background:${COL[k]}"></i>${km(k)} km ${({0:'libres',4:'sans panneau',1:'durée limitée',3:'interdits'})[k]}</span>`).join('');
+  // recommandations
+  const cand=[];
+  for(const tr of inR) for(const sd of [1,-1]){ const S_=tr.sides[sd];
+    if(S_.signed&&S_.run&&S_.run.t1-S_.run.t0>=25) cand.push({tr,sd,kind:0,pt:midOf(S_.run.parts),score:tr.dist});
+    else if(!S_.signed&&S_.iv[0]&&S_.iv[0].s===4&&tr.t.L>=60) cand.push({tr,sd,kind:4,pt:midOf(S_.iv),score:tr.dist+60}) }
+  cand.sort((a,b)=>a.score-b.score);
+  const seen=new Set(), zones=[]; for(const z of cand){ if(seen.has(z.tr.t.n)||zones.length>=8) continue; seen.add(z.tr.t.n); zones.push(z) }
+  window._zones=zones;
+  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0])}</li>`}).join('')
+    :`<li class="empty">Aucune rue nettement favorable dans ce rayon pour cette plage. Essayez un rayon plus grand ou une autre plage horaire.</li>`;
+  [...$('zones').querySelectorAll('.zone')].forEach(el=>{const f=e=>{ if(e.target.closest('a')) return; const z=zones[+el.dataset.i]; zoneSel=z.tr.i; select(z.tr.i,z.pt) }; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter')f(e)}});
+  // carte
+  if(map&&map.getSource('p')){
+    map.getSource('p').setData({type:'FeatureCollection',features:FEAT.filter(f=>TRS[f.ti].dist<=R+250).map(f=>({type:'Feature',properties:{s:f.s,o:f.side===1?-1:1,ti:f.ti,in:TRS[f.ti].dist<=R?1:0},geometry:{type:'LineString',coordinates:f.co}}))});
+    map.getSource('ring').setData({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:circle(s,R)}});
+    drawSel();
+    if(fly) map.flyTo({center:[s.lon,s.lat],zoom:R<=400?15.6:R<=600?15.1:14.5,duration:900});
+  }
+  sheet();
+}
+function drawSel(){ if(!map||!map.getSource('sel')) return; const feats=sel==null?[]:FEAT.filter(f=>f.ti===sel&&f.side===1).map(f=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:f.co}})); map.getSource('sel').setData({type:'FeatureCollection',features:feats}) }
+function select(ti,pt){ sel=ti; drawSel(); sheet(); [...$('zones').children].forEach(el=>{const z=window._zones[+el.dataset.i]; if(z) el.setAttribute('aria-current',z.tr.i===zoneSel)});
+  if(pt&&map) map.flyTo({center:pt,zoom:Math.max(map.getZoom(),16.8),duration:700});
+  if(window.matchMedia('(max-width:899px)').matches) (pt?$('map'):$('sheet')).scrollIntoView({behavior:'smooth',block:pt?'start':'nearest'}) }
+function sheet(){
+  const el=$('sheet'); if(sel==null){el.innerHTML='';return}
+  const tr=TRS[sel];
+  const blocks=[1,-1].map(sd=>{ const S_=tr.sides[sd]; if(!S_.iv.length) return '';
+    if(!S_.signed) return `<div class="sd"><b style="color:${COL[S_.iv[0].s]}">Côté ${S_.name} : ${S_.iv[0].s===4?'aucun panneau répertorié, libre probable':'non évalué (artère sans panneau répertorié)'}</b></div>`;
+    const worst=Math.max(...S_.iv.map(v=>v.s));
+    const head=S_.free>=tr.t.L-1?`libre sur toute la longueur (${Math.round(tr.t.L)} m)`:S_.free>0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:worst===1?'gratuit, durée limitée':'aucune portion libre pendant la plage';
+    const col=S_.free>0?COL[0]:worst===1?COL[1]:COL[3];
+    const rs=new Map(); S_.iv.forEach(v=>v.rs.forEach(i=>{ if(D.rules[i].c==='info') return; rs.set(i,(rs.get(i)||0)+(v.t1-v.t0)) }));
+    const rows=[...rs].sort((a,b)=>ACT[b[0]]-ACT[a[0]]).map(([i,len])=>{const r=D.rules[i],on=ACT[i]; return `<li class="${on?'':'off'}"><i class="dot" style="background:${on?COL[sev(r.c)]:'var(--line)'}"></i><span>${r.t} <span class="len">(${Math.round(len)} m${on?'':', ne s\'applique pas'})</span></span></li>`}).join('');
+    return `<div class="sd"><b style="color:${col}">Côté ${S_.name} : ${head}</b><ul>${rows}</ul></div>` }).join('');
+  const m=trMid(tr);
+  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0])}`;
+}
+
+// ---------- carte ----------
+function initMap(){
+  const s=D.stations[st];
+  map=new maplibregl.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:{compact:true}});
+  map.addControl(new maplibregl.NavigationControl({showCompass:true}),'top-right');
+  map.addControl(new maplibregl.GeolocateControl({positionOptions:{enableHighAccuracy:true},trackUserLocation:true}),'top-right');
+  map.on('load',()=>{
+    $('loading')?.remove();
+    const off=['interpolate',['exponential',1.6],['zoom'],13,['*',['get','o'],0.8],16,['*',['get','o'],3.2],19,['*',['get','o'],11]];
+    const wid=['interpolate',['exponential',1.6],['zoom'],13,1,16,3,19,9];
+    map.addSource('p',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    map.addSource('ring',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    map.addSource('sel',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    map.addLayer({id:'ring',type:'line',source:'ring',paint:{'line-color':'#16201A','line-opacity':.45,'line-width':1.5,'line-dasharray':[3,3]}});
+    map.addLayer({id:'sel',type:'line',source:'sel',paint:{'line-color':'#16201A','line-opacity':.16,'line-width':['interpolate',['linear'],['zoom'],13,8,16,18,19,40]},layout:{'line-cap':'round','line-join':'round'}});
+    const color=['match',['get','s'],0,COL[0],1,COL[1],2,COL[2],3,COL[3],4,COL[4],COL[5]];
+    const opac=['case',['==',['get','in'],1],1,.35];
+    map.addLayer({id:'p',type:'line',source:'p',filter:['!=',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac}});
+    map.addLayer({id:'p4',type:'line',source:'p',filter:['==',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac,'line-dasharray':[2,1]}});
+    map.addLayer({id:'hit',type:'line',source:'p',paint:{'line-color':'#000','line-opacity':0,'line-width':18}});
+    map.on('click','hit',e=>{ const f=e.features[0]; if(f){ zoneSel=null; select(f.properties.ti) } });
+    map.on('mouseenter','hit',()=>map.getCanvas().style.cursor='pointer');
+    map.on('mouseleave','hit',()=>map.getCanvas().style.cursor='');
+    D.stations.forEach((s,i)=>{ const el=document.createElement('div'); el.innerHTML=`<div class="st-marker"></div><div class="st-label" style="position:absolute;left:0;top:0">${s.n}</div>`;
+      el.querySelector('.st-marker').onclick=e=>{e.stopPropagation(); st=i; sel=null; zoneSel=null; render(true)};
+      markers.push(new maplibregl.Marker({element:el}).setLngLat([s.lon,s.lat]).addTo(map)) });
+    render(true);
+  });
+  map.on('error',e=>{ if(!map.isStyleLoaded()&&$('loading')) $('loading').textContent='Le fond de carte n\'a pas pu être chargé.' });
+}
+
+// ---------- démarrage ----------
+(async function(){
+  const now=new Date(); $('date').value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`; $('t1').value='07:00'; $('t2').value='18:00';
+  readHash();
+  const slot=window.matchMedia('(min-width:900px)').matches?$('deskSlot'):$('mobSlot');
+  slot.appendChild($('lower').content.cloneNode(true));
+  if(slot===$('deskSlot')) slot.classList.remove('only-desk');
+  $('legend').innerHTML=[0,4,1,2,3,5].map(k=>`<span><i style="background:${COL[k]}"></i>${LAB[k]}</span>`).join('');
+  D=await (await fetch('data.json')).json();
+  $('gen').textContent=new Date(D.generated+'T12:00').toLocaleDateString('fr-CA',{day:'numeric',month:'long',year:'numeric'});
+  D.stations.forEach((s,i)=>{const b=document.createElement('button');b.textContent=s.n;b.onclick=()=>{st=i;sel=null;zoneSel=null;render(true)};$('stations').appendChild(b)});
+  ['date','t1','t2'].forEach(id=>$(id).addEventListener('change',()=>render(false)));
+  $('rad').addEventListener('change',()=>render(true));
+  initMap();
+})();
+</script>
+</body>
+</html>
