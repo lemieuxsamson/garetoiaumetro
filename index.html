@@ -55,6 +55,7 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .zone b{font:600 17px/1.2 "Barlow Condensed",sans-serif}
 .meta{font-size:13px;color:var(--soft)}
 .nav{display:flex;gap:6px;flex-wrap:wrap}
+.nav a.sv{border-color:#F2B233;background:#FFF6DF;color:#5A4200}
 .nav a{font:600 13px "Barlow",sans-serif;color:var(--ink);text-decoration:none;border:1.5px solid var(--line);border-radius:6px;padding:4px 9px;background:var(--paper)}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .sheet:empty{display:none}
@@ -120,8 +121,11 @@ const fmtD=d=>d>=60?(d/60)+' h':d+' min';
 function monthOk(m,d){ if(!m) return true; const v=(d.getMonth()+1)*100+d.getDate(), a=m[0]*100+m[1], b=m[2]*100+m[3]; return a<=b?(v>=a&&v<=b):(v>=a||v<=b) }
 function active(r,wd,S,E){ for(const [a,b,days] of r.w){ if(!days.includes(wd)) continue; for(const [x,y] of (a<b?[[a,b]]:[[a,1440],[0,b]])) if(x<E&&y>S) return true } return false }
 const sev=c=>c==='limite'?1:c==='tarife'?2:3;
-function links(lat,lon){ const ll=`${lat.toFixed(6)},${lon.toFixed(6)}`;
-  return `<div class="nav"><a href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving" target="_blank" rel="noopener">Google Maps</a><a href="https://maps.apple.com/?daddr=${ll}&dirflg=d" target="_blank" rel="noopener">Plans</a><a href="https://waze.com/ul?ll=${ll}&navigate=yes" target="_blank" rel="noopener">Waze</a></div>`}
+function links(lat,lon,extra){ const ll=`${lat.toFixed(6)},${lon.toFixed(6)}`;
+  return `<div class="nav"><a href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving" target="_blank" rel="noopener">Google Maps</a><a href="https://maps.apple.com/?daddr=${ll}&dirflg=d" target="_blank" rel="noopener">Plans</a><a href="https://waze.com/ul?ll=${ll}&navigate=yes" target="_blank" rel="noopener">Waze</a>${extra||''}</div>`}
+function heading(tr,sd){ const iv=tr.sides[1].iv.length?tr.sides[1].iv:tr.sides[-1].iv; const a=iv[0].co[0], b=iv[iv.length-1].co[iv[iv.length-1].co.length-1];
+  const gx=(b[0]-a[0])*Math.cos(a[1]*Math.PI/180), gy=b[1]-a[1]; let h=Math.atan2(-gy,gx)*180/Math.PI; if(sd===-1) h+=180; return Math.round((h+360)%360) }
+function sv(lat,lon,h,label){ return `<a class="sv" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80" target="_blank" rel="noopener">${label||'Street View'}</a>` }
 function entre(t){const e=t.e.filter(Boolean); if(e.length===2&&e[0]!==e[1]) return `entre ${e[0]} et ${e[1]}`; if(e.length) return `près de l'intersection avec ${e[0]}`; return ''}
 const distM=(lat,lon,s)=>Math.hypot((lon-s.lon)*K*Math.cos(s.lat*Math.PI/180),(lat-s.lat)*K);
 function circle(s,r){const out=[];for(let i=0;i<=72;i++){const a=i/72*2*Math.PI; out.push([s.lon+Math.cos(a)*r/(K*Math.cos(s.lat*Math.PI/180)), s.lat+Math.sin(a)*r/K])} return out}
@@ -174,7 +178,7 @@ function render(fly){
   cand.sort((a,b)=>a.score-b.score);
   const seen=new Set(), zones=[]; for(const z of cand){ if(seen.has(z.tr.t.n)||zones.length>=8) continue; seen.add(z.tr.t.n); zones.push(z) }
   window._zones=zones;
-  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0])}</li>`}).join('')
+  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0],sv(z.pt[1],z.pt[0],heading(tr,z.sd),'Street View du côté '+S_.name))}</li>`}).join('')
     :`<li class="empty">Aucune rue nettement favorable dans ce rayon pour cette plage. Essayez un rayon plus grand ou une autre plage horaire.</li>`;
   [...$('zones').querySelectorAll('.zone')].forEach(el=>{const f=e=>{ if(e.target.closest('a')) return; const z=zones[+el.dataset.i]; zoneSel=z.tr.i; select(z.tr.i,z.pt) }; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter')f(e)}});
   // carte
@@ -202,7 +206,7 @@ function sheet(){
     const rows=[...rs].sort((a,b)=>ACT[b[0]]-ACT[a[0]]).map(([i,len])=>{const r=D.rules[i],on=ACT[i]; return `<li class="${on?'':'off'}"><i class="dot" style="background:${on?COL[sev(r.c)]:'var(--line)'}"></i><span>${r.t} <span class="len">(${Math.round(len)} m${on?'':', ne s\'applique pas'})</span></span></li>`}).join('');
     return `<div class="sd"><b style="color:${col}">Côté ${S_.name} : ${head}</b><ul>${rows}</ul></div>` }).join('');
   const m=trMid(tr);
-  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0])}`;
+  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0],[1,-1].filter(sd=>tr.sides[sd].iv.length).map(sd=>sv(m[1],m[0],heading(tr,sd),'Street View côté '+tr.sides[sd].name)).join(''))}`;
 }
 
 // ---------- carte ----------
