@@ -97,6 +97,14 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .win{font-size:14px}
 .warn{font-size:13px;background:#FFF6DF;color:#5A4200;border:1px solid #F2B233;border-radius:8px;padding:8px 10px;margin:0}
 .warn:empty{display:none}
+.linkbtn{border:0;background:none;color:var(--tarife);font:600 14px "Barlow",sans-serif;padding:0;cursor:pointer;justify-self:start;text-decoration:underline;text-underline-offset:3px}
+.simbox{display:grid;gap:8px;border:1.5px dashed #E07A1F;border-radius:10px;padding:10px 12px;background:#FFF4EA;color:#5A2F00}
+.simbox p{margin:0;font-size:13px}
+.simbox .r{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.simbox label{color:#5A2F00;flex:1 1 170px}
+.simbox button{border:1.5px solid #E07A1F;background:#fff;color:#5A2F00;border-radius:8px;padding:7px 10px;font:600 14px "Barlow",sans-serif;cursor:pointer}
+.simbox button.quit{background:#E07A1F;color:#fff}
+.car.sim .cdot{background:#E07A1F}.car.sim .hd{border-bottom-color:#E07A1F}.car.sim{cursor:grab}
 .recenter{position:absolute;left:10px;bottom:28px;z-index:4;border:0;border-radius:999px;background:#fff;color:#16201A;box-shadow:0 2px 8px rgba(0,0,0,.25);font:600 14px "Barlow",sans-serif;padding:8px 14px;cursor:pointer}
 .car{width:22px;height:22px;position:relative}
 .car .cdot{position:absolute;inset:3px;border-radius:50%;background:#1C6FD6;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 4px rgba(0,0,0,.3)}
@@ -127,6 +135,15 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
    </div>
    <div class="status" id="gpsStatus"><i class="pulse off"></i><span>Position inactive</span></div>
    <div class="win" id="gpsWin"></div>
+   <button type="button" class="linkbtn" id="simBtn">Simuler une position</button>
+   <div class="simbox" id="simBox" hidden>
+    <p><b>Simulation.</b> Touchez la carte pour placer le véhicule, puis glissez-le pour le faire rouler.</p>
+    <div class="r">
+     <label>Heure simulée<input type="datetime-local" id="simTime" step="60"></label>
+     <button type="button" id="simNow">Maintenant</button>
+    </div>
+    <button type="button" class="quit" id="simQuit">Quitter la simulation</button>
+   </div>
   </div>
   <div id="stBox" hidden style="display:grid;gap:14px">
    <div class="stations" role="group" aria-label="Station" id="stations"></div>
@@ -214,8 +231,11 @@ async function loadTiles(keys){
 }
 
 // ---------- plage horaire ----------
+let SIM=null, SIMSTART=null;                 // simulation : {off: décalage d'horloge en ms}
+const now=()=>new Date(Date.now()+(SIM?SIM.off:0));
+const localInput=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 function segments(){
-  if(mode==='gps'){ const dur=+$('dur').value, a=new Date(), b=new Date(a.getTime()+dur*60000), out=[];
+  if(mode==='gps'){ const dur=+$('dur').value, a=now(), b=new Date(a.getTime()+dur*60000), out=[];
     for(let d=new Date(a.getFullYear(),a.getMonth(),a.getDate()); d<b; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)){
       const S=d<a?a.getHours()*60+a.getMinutes():0, nd=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1);
       const E=b<nd?b.getHours()*60+b.getMinutes():1440; if(E>S) out.push({d,wd:(d.getDay()+6)%7,S,E}) }
@@ -231,8 +251,10 @@ function readHash(){ const p=new URLSearchParams(location.hash.slice(1));
   if(p.has('s')) st=Math.min(4,Math.max(0,+p.get('s')||0));
   if(p.get('d')) $('date').value=p.get('d'); if(p.get('de')) $('t1').value=p.get('de'); if(p.get('a')) $('t2').value=p.get('a'); if(p.get('r')) $('rad').value=p.get('r');
   const du=p.get('dur')||store.get('dur'); if(du&&$('dur').querySelector(`option[value="${du}"]`)) $('dur').value=du;
-  const gr=p.get('gr')||store.get('gRad'); if(gr&&$('gRad').querySelector(`option[value="${gr}"]`)) $('gRad').value=gr }
-function writeHash(){ const p=mode==='gps'?new URLSearchParams({m:'gps',dur:$('dur').value,gr:$('gRad').value}):new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
+  const gr=p.get('gr')||store.get('gRad'); if(gr&&$('gRad').querySelector(`option[value="${gr}"]`)) $('gRad').value=gr;
+  const sm=(p.get('sim')||'').split(',').map(Number);
+  if(mode==='gps'&&sm.length===2&&sm.every(isFinite)) SIMSTART={lat:sm[0],lon:sm[1],t:p.get('t')} }
+function writeHash(){ const p=mode==='gps'?new URLSearchParams({m:'gps',dur:$('dur').value,gr:$('gRad').value,...(SIM&&lastFix?{sim:`${lastFix.lat.toFixed(5)},${lastFix.lon.toFixed(5)}`}:{}),...(SIM&&Math.abs(SIM.off)>60000?{t:localInput(now())}:{})}):new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
 
 // ---------- calcul ----------
 function compute(keys){
@@ -270,7 +292,7 @@ async function render(fly){
   const keys=tileKeys(CENTER,radius()); await loadTiles(keys);
   const R=compute(keys);
   if(mode==='gps'){ const {a,b}=segments(); const same=a.toDateString()===b.toDateString();
-    $('gpsWin').innerHTML=`Plage évaluée : <b>${fmtT(a)} → ${same?'':JOURS[(b.getDay()+6)%7]+' '}${fmtT(b)}</b>${same?` (${JOURS[(a.getDay()+6)%7]})`:''}` }
+    $('gpsWin').innerHTML=`Plage évaluée${SIM&&Math.abs(SIM.off)>60000?' (heure simulée)':''} : <b>${same?'':JOURS[(a.getDay()+6)%7]+' '}${fmtT(a)} → ${same?'':JOURS[(b.getDay()+6)%7]+' '}${fmtT(b)}</b>${same?` (${JOURS[(a.getDay()+6)%7]}${Math.abs(a-new Date())>864e5?' '+a.toLocaleDateString('fr-CA',{day:'numeric',month:'long'}):''})`:''}` }
   const inR=Object.values(TRS).filter(t=>t.dist<=R);
   const tot={0:0,1:0,2:0,3:0,4:0,5:0}; inR.forEach(t=>[1,-1].forEach(sd=>t.sides[sd].iv.forEach(v=>tot[v.s]+=v.t1-v.t0)));
   const all=Object.values(tot).reduce((a,b)=>a+b,0), unc=inR.filter(t=>t.t.cv===0).reduce((a,t)=>a+2*t.t.L,0);
@@ -331,7 +353,7 @@ function startGps(){
   $('gpsStart').hidden=true; setStatus('Recherche de votre position…',true);
   watchId=navigator.geolocation.watchPosition(onFix,onGpsErr,{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
   keepAwake();
-  clearInterval(statusTimer); statusTimer=setInterval(()=>{ if(!lastFix||mode!=='gps') return; const s=Math.round((Date.now()-lastFix.t)/1000);
+  clearInterval(statusTimer); statusTimer=setInterval(()=>{ if(!lastFix||mode!=='gps'||SIM) return; const s=Math.round((Date.now()-lastFix.t)/1000);
     setStatus(`Position ±${Math.round(lastFix.acc)} m · mise à jour ${s<5?'à l\'instant':`il y a ${s<60?s+' s':Math.round(s/60)+' min'}`}`,s<60);
     if(lastCalc&&Date.now()-lastCalc.t>60000) recalc(false) },5000);
 }
@@ -342,22 +364,54 @@ function onGpsErr(e){
   if(e.code===1){ stopGps(); $('gpsStart').hidden=false; $('gpsStart').textContent='Réessayer' }
 }
 function onFix(p){
+  if(SIM&&!p.sim) return;                    // GPS réel ignoré pendant la simulation
   const c=p.coords; lastFix={lat:c.latitude,lon:c.longitude,acc:c.accuracy,hd:c.heading,sp:c.speed,t:Date.now()};
   if(map){
-    if(!carMarker){ const el=document.createElement('div'); el.className='car'; el.innerHTML='<div class="hd"></div><div class="cdot"></div>'; carMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'}) }
-    carMarker.setLngLat([c.longitude,c.latitude]).addTo(map);
+    if(!carMarker){ const el=document.createElement('div'); el.className='car'; el.innerHTML='<div class="hd"></div><div class="cdot"></div>'; carMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'});
+      let last=null, tk=0;
+      carMarker.on('dragstart',()=>{ last=carMarker.getLngLat() });
+      carMarker.on('drag',()=>{ const q=carMarker.getLngLat(), t0=Date.now(); if(t0-tk<250) return; tk=t0; simDrive(last,q); last=q });
+      carMarker.on('dragend',()=>{ const q=carMarker.getLngLat(); simDrive(last,q,true) }) }
+    carMarker.getElement().classList.toggle('sim',!!SIM); if(carMarker.isDraggable()!==!!SIM) carMarker.setDraggable(!!SIM);
+    if(!p.noFollow) carMarker.setLngLat([c.longitude,c.latitude]); if(!carMarker.getElement().isConnected) carMarker.addTo(map);
     const moving=c.heading!=null&&!isNaN(c.heading)&&(c.speed||0)>1; carMarker.getElement().classList.toggle('moving',moving); if(moving) carMarker.setRotation(c.heading);
     map.getSource('acc')&&map.getSource('acc').setData({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[circle({lat:c.latitude,lon:c.longitude},Math.min(c.accuracy,500))]}});
   }
   if(mode!=='gps') return;
-  setStatus(`Position ±${Math.round(c.accuracy)} m · mise à jour à l'instant`,true);
+  setStatus(SIM?'Position simulée':`Position ±${Math.round(c.accuracy)} m · mise à jour à l'instant`,true);
   const first=!lastCalc;
-  if(first||distM(c.latitude,c.longitude,lastCalc)>40) recalc(first);
-  else if(following&&map) map.easeTo({center:[c.longitude,c.latitude],duration:800});
+  if(first||distM(c.latitude,c.longitude,lastCalc)>40) recalc(first,p.noFollow);
+  else if(following&&map&&!p.noFollow) map.easeTo({center:[c.longitude,c.latitude],duration:800});
 }
-function recalc(fly){ if(!lastFix) return; CENTER={lat:lastFix.lat,lon:lastFix.lon}; lastCalc={...CENTER,t:Date.now()};
-  if(following&&map&&!fly) map.easeTo({center:[CENTER.lon,CENTER.lat],duration:800});
+function recalc(fly,noFollow){ if(!lastFix) return; CENTER={lat:lastFix.lat,lon:lastFix.lon}; lastCalc={...CENTER,t:Date.now()};
+  if(following&&map&&!fly&&!noFollow) map.easeTo({center:[CENTER.lon,CENTER.lat],duration:800});
   follow(following); render(fly) }
+
+// ---------- simulation ----------
+let simTimer=null, simResume=false;
+function simFeed(lat,lon,hd,sp,noFollow){ onFix({sim:true,noFollow,coords:{latitude:lat,longitude:lon,accuracy:5,heading:hd,speed:sp}}) }
+function simDrive(a,b,end){ if(!SIM||!a) return;
+  const dx=(b.lng-a.lng)*K*Math.cos(b.lat*Math.PI/180), dy=(b.lat-a.lat)*K, moved=Math.hypot(dx,dy)>1;
+  const hd=moved?(Math.atan2(dx,dy)*180/Math.PI+360)%360:(lastFix&&lastFix.hd);
+  simFeed(b.lat,b.lng,hd,moved||(lastFix&&lastFix.sp)?8:0,!end) }
+function enterSim(at){
+  if(!SIM){ simResume=watchId!=null; stopGps(); SIM={off:0} }
+  $('simBtn').hidden=true; $('simBox').hidden=false; $('gpsStart').hidden=true;
+  $('simTime').value=localInput(now());
+  clearInterval(simTimer); simTimer=setInterval(()=>{ if(SIM&&lastFix&&mode==='gps') recalc(false,true) },60000);
+  const c=at||(lastFix&&{lat:lastFix.lat,lon:lastFix.lon})||(map&&{lat:map.getCenter().lat,lon:map.getCenter().lng})||META.stations[st];
+  lastCalc=null; follow(true); simFeed(c.lat,c.lon,null,0);
+}
+function exitSim(){
+  SIM=null; clearInterval(simTimer); $('simBox').hidden=true; $('simBtn').hidden=false;
+  lastFix=null; lastCalc=null; CENTER=null; sel=null; zoneSel=null;
+  if(carMarker){ carMarker.setDraggable(false); carMarker.getElement().classList.remove('sim'); carMarker.remove() }
+  map&&map.getSource('acc')&&map.getSource('acc').setData({type:'FeatureCollection',features:[]});
+  $('zones').innerHTML=''; $('tally').innerHTML=''; $('warn').textContent=''; $('gpsWin').innerHTML=''; $('sheet').innerHTML='';
+  if(map&&map.getSource('p')){ map.getSource('p').setData({type:'FeatureCollection',features:[]}); map.getSource('ring').setData({type:'FeatureCollection',features:[]}) }
+  setStatus('Position inactive',false); writeHash();
+  if(simResume) startGps(); else { $('gpsStart').hidden=false; $('gpsStart').textContent='Activer ma position' }
+}
 
 // ---------- modes ----------
 function setMode(m,initial){
@@ -365,8 +419,10 @@ function setMode(m,initial){
   $('mGps').setAttribute('aria-pressed',m==='gps'); $('mSt').setAttribute('aria-pressed',m==='station');
   $('gpsBox').hidden=m!=='gps'; $('stBox').hidden=m!=='station';
   sel=null; zoneSel=null; $('err').textContent='';
+  if(m!=='gps'&&SIM) exitSim();
   if(m==='gps'){
     follow(true);
+    if(SIMSTART){ const s=SIMSTART; SIMSTART=null; enterSim(s); if(s.t){ const d=new Date(s.t); if(!isNaN(d)){ SIM.off=d-Date.now(); $('simTime').value=localInput(now()); recalc(true) } } return }
     if(lastFix&&watchId!=null){ recalc(true); return }
     CENTER=null; $('zones').innerHTML=''; $('tally').innerHTML=''; $('warn').textContent='';
     if(map&&map.getSource('p')){ map.getSource('p').setData({type:'FeatureCollection',features:[]}); map.getSource('ring').setData({type:'FeatureCollection',features:[]}) }
@@ -420,7 +476,8 @@ function initMap(){
     map.addLayer({id:'p',type:'line',source:'p',filter:['!=',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac}});
     map.addLayer({id:'p4',type:'line',source:'p',filter:['==',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac,'line-dasharray':[2,1]}});
     map.addLayer({id:'hit',type:'line',source:'p',paint:{'line-color':'#000','line-opacity':0,'line-width':18}});
-    map.on('click','hit',e=>{ const f=e.features[0]; if(f){ zoneSel=null; select(f.properties.ti) } });
+    map.on('click','hit',e=>{ if(SIM&&mode==='gps') return; const f=e.features[0]; if(f){ zoneSel=null; select(f.properties.ti) } });
+    map.on('click',e=>{ if(SIM&&mode==='gps'){ follow(true); simFeed(e.lngLat.lat,e.lngLat.lng,lastFix&&lastFix.hd,0) } });
     map.on('mouseenter','hit',()=>map.getCanvas().style.cursor='pointer');
     map.on('mouseleave','hit',()=>map.getCanvas().style.cursor='');
     META.stations.forEach((s,i)=>{ const el=document.createElement('div'); el.innerHTML=`<div class="st-marker"></div><div class="st-label" style="position:absolute;left:0;top:0">${s.n}</div>`;
@@ -451,6 +508,9 @@ function initMap(){
   $('gpsStart').onclick=()=>{ $('gpsStart').textContent='Activer ma position'; startGps() };
   $('recenter').onclick=()=>{ follow(true); if(lastFix) recalc(false); };
   $('svclose').onclick=closeSV;
+  $('simBtn').onclick=()=>enterSim(); $('simQuit').onclick=exitSim;
+  $('simTime').addEventListener('change',()=>{ const d=new Date($('simTime').value); if(!SIM||isNaN(d)) return; SIM.off=d-Date.now(); if(lastFix) recalc(false,true) });
+  $('simNow').onclick=()=>{ if(!SIM) return; SIM.off=0; $('simTime').value=localInput(now()); if(lastFix) recalc(false,true) };
   initMap();
   setMode(mode,true);
 })();
