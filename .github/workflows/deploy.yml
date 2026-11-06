@@ -31,12 +31,13 @@ jobs:
       - name: Assembler le site
         env:
           GMAPS_EMBED_KEY: ${{ secrets.GMAPS_EMBED_KEY }}
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: |
           mkdir _site
           cp index.html _site/
           cp -r data _site/
           [ -f CNAME ] && cp CNAME _site/
-          python3 -c "import json,os; print('window.APP_CONFIG = ' + json.dumps({'GMAPS_EMBED_KEY': os.environ.get('GMAPS_EMBED_KEY','')}) + ';')" > _site/config.js
+          python3 -c "import json,os; print('window.APP_CONFIG = ' + json.dumps({k: os.environ.get(k,'') for k in ('GMAPS_EMBED_KEY','MAPBOX_TOKEN')}) + ';')" > _site/config.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

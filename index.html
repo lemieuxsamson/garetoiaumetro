@@ -7,7 +7,6 @@
 <meta name="description" content="Carte des côtés de rue où le stationnement est probablement gratuit et permis à Montréal, autour de votre position ou d'une station de métro, selon l'heure.">
 <meta name="theme-color" content="#16201A">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🅿️</text></svg>">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -105,6 +104,14 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .simbox button{border:1.5px solid #E07A1F;background:#fff;color:#5A2F00;border-radius:8px;padding:7px 10px;font:600 14px "Barlow",sans-serif;cursor:pointer}
 .simbox button.quit{background:#E07A1F;color:#fff}
 .car.sim .cdot{background:#E07A1F}.car.sim .hd{border-bottom-color:#E07A1F}.car.sim{cursor:grab}
+.search{position:relative}
+.search input{padding:10px 12px;font-size:16px}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;list-style:none;margin:0;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.sugg li{display:grid;padding:7px 9px;border-radius:7px;cursor:pointer}
+.sugg li span{font-size:12.5px;color:var(--soft)}
+.sugg li[aria-selected="true"],.sugg li[data-i]:hover{background:var(--paper)}
+.sugg li.none{color:var(--soft);cursor:default;font-size:14px}
+.pin{width:26px;height:34px;background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 34'%3E%3Cpath d='M13 33C13 33 25 20 25 12.5A12 12 0 0 0 1 12.5C1 20 13 33 13 33Z' fill='%23CC3A2F' stroke='white' stroke-width='2'/%3E%3Ccircle cx='13' cy='12.5' r='4.5' fill='white'/%3E%3C/svg%3E");filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
 .recenter{position:absolute;left:10px;bottom:28px;z-index:4;border:0;border-radius:999px;background:#fff;color:#16201A;box-shadow:0 2px 8px rgba(0,0,0,.25);font:600 14px "Barlow",sans-serif;padding:8px 14px;cursor:pointer}
 .car{width:22px;height:22px;position:relative}
 .car .cdot{position:absolute;inset:3px;border-radius:50%;background:#1C6FD6;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 4px rgba(0,0,0,.3)}
@@ -146,6 +153,10 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
    </div>
   </div>
   <div id="stBox" hidden style="display:grid;gap:14px">
+   <div class="search" id="searchBox" hidden>
+    <input type="search" id="q" placeholder="Adresse ou lieu (ex. 2100 rue Drummond)" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sugg" aria-label="Rechercher une adresse">
+    <ul class="sugg" id="sugg" role="listbox" hidden></ul>
+   </div>
    <div class="stations" role="group" aria-label="Station" id="stations"></div>
    <div class="row">
     <label>Date<input type="date" id="date"></label>
@@ -180,13 +191,21 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
   <p class="note">Données : Ville de Montréal, <a href="https://donnees.montreal.ca/dataset/stationnement-sur-rue-signalisation-courant" target="_blank" rel="noopener">Signalisation (stationnement sur rue)</a> et <a href="https://donnees.montreal.ca/dataset/geobase" target="_blank" rel="noopener">Géobase</a>, licence CC BY 4.0, extrait du <span id="gen"></span>. Fond de carte : OpenFreeMap, OpenMapTiles, © contributeurs OpenStreetMap. Outil personnel non officiel : fiez-vous toujours à la signalisation sur place.</p>
 </template>
 
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="config.js" onerror="window.APP_CONFIG={}"></script>
 <script>
 // Clé « Maps Embed API » fournie par config.js (généré au déploiement, jamais commité).
 // Sans clé, Street View s'ouvre dans Google Maps.
 const GMAPS_EMBED_KEY=(window.APP_CONFIG&&window.APP_CONFIG.GMAPS_EMBED_KEY)||'';
-const STYLE='https://tiles.openfreemap.org/styles/positron';
+// Jeton public Mapbox (config.js) : fond Mapbox + recherche d'adresse. Sans jeton : MapLibre + OpenFreeMap.
+const MAPBOX_TOKEN=(window.APP_CONFIG&&window.APP_CONFIG.MAPBOX_TOKEN)||'';
+const MBX='https://api.mapbox.com/mapbox-gl-js/v3.34.2/', MLB='https://unpkg.com/maplibre-gl@4.7.1/dist/';
+let GL=null, STYLE='https://tiles.openfreemap.org/styles/positron';
+function loadScript(src){ return new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=ko; document.head.appendChild(s) }) }
+function loadCss(href){ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; document.head.appendChild(l) }
+async function loadMapLib(){
+  if(MAPBOX_TOKEN){ try{ loadCss(MBX+'mapbox-gl.css'); await loadScript(MBX+'mapbox-gl.js');
+    mapboxgl.accessToken=MAPBOX_TOKEN; GL=mapboxgl; STYLE='mapbox://styles/mapbox/light-v11'; return }catch(e){ console.warn('Mapbox indisponible, repli sur MapLibre') } }
+  loadCss(MLB+'maplibre-gl.css'); await loadScript(MLB+'maplibre-gl.js'); GL=maplibregl }
 const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
 const LAB={0:'Libre (panneaux vérifiés)',4:'Sans panneau, libre probable',1:'Gratuit, durée limitée',2:'Tarifé',3:'Interdit ou réservé',5:'Non évalué'};
 const JOURS=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
@@ -213,7 +232,9 @@ function entre(t){const e=t.e.filter(Boolean); if(e.length===2&&e[0]!==e[1]) ret
 const distM=(lat,lon,s)=>Math.hypot((lon-s.lon)*K*Math.cos(s.lat*Math.PI/180),(lat-s.lat)*K);
 function circle(s,r){const out=[];for(let i=0;i<=72;i++){const a=i/72*2*Math.PI; out.push([s.lon+Math.cos(a)*r/(K*Math.cos(s.lat*Math.PI/180)), s.lat+Math.sin(a)*r/K])} return out}
 const radius=()=>+(mode==='gps'?$('gRad').value:$('rad').value);
-const fromWhere=()=>mode==='gps'?'de vous':'de la station';
+let PT=null, ptMarker=null;                  // point choisi par recherche d'adresse : {lat,lon,n}
+const fromWhere=()=>mode==='gps'?'de vous':PT?'de l\'adresse':'de la station';
+const stCenter=()=>PT||META.stations[Math.max(st,0)];
 
 // ---------- tuiles ----------
 function tileKeys(c,R){ const [TLA,TLO]=META.tile, m=R+300, dLat=m/K, dLon=m/(K*Math.cos(c.lat*Math.PI/180)), out=[];
@@ -247,14 +268,16 @@ function segments(){
 
 // ---------- état ↔ URL ----------
 function readHash(){ const p=new URLSearchParams(location.hash.slice(1));
-  if(p.get('m')==='gps') mode='gps'; else if(p.has('s')) mode='station'; else mode=store.get('mode')==='station'?'station':'gps';
+  const pt=(p.get('pt')||'').split(',').map(Number);
+  if(pt.length===2&&pt.every(isFinite)){ PT={lat:pt[0],lon:pt[1],n:p.get('pl')||'Adresse'}; st=-1 }
+  if(p.get('m')==='gps') mode='gps'; else if(p.has('s')||PT) mode='station'; else mode=store.get('mode')==='station'?'station':'gps';
   if(p.has('s')) st=Math.min(4,Math.max(0,+p.get('s')||0));
   if(p.get('d')) $('date').value=p.get('d'); if(p.get('de')) $('t1').value=p.get('de'); if(p.get('a')) $('t2').value=p.get('a'); if(p.get('r')) $('rad').value=p.get('r');
   const du=p.get('dur')||store.get('dur'); if(du&&$('dur').querySelector(`option[value="${du}"]`)) $('dur').value=du;
   const gr=p.get('gr')||store.get('gRad'); if(gr&&$('gRad').querySelector(`option[value="${gr}"]`)) $('gRad').value=gr;
   const sm=(p.get('sim')||'').split(',').map(Number);
   if(mode==='gps'&&sm.length===2&&sm.every(isFinite)) SIMSTART={lat:sm[0],lon:sm[1],t:p.get('t')} }
-function writeHash(){ const p=mode==='gps'?new URLSearchParams({m:'gps',dur:$('dur').value,gr:$('gRad').value,...(SIM&&lastFix?{sim:`${lastFix.lat.toFixed(5)},${lastFix.lon.toFixed(5)}`}:{}),...(SIM&&Math.abs(SIM.off)>60000?{t:localInput(now())}:{})}):new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
+function writeHash(){ const p=mode==='gps'?new URLSearchParams({m:'gps',dur:$('dur').value,gr:$('gRad').value,...(SIM&&lastFix?{sim:`${lastFix.lat.toFixed(5)},${lastFix.lon.toFixed(5)}`}:{}),...(SIM&&Math.abs(SIM.off)>60000?{t:localInput(now())}:{})}):new URLSearchParams({...(PT?{pt:`${PT.lat.toFixed(5)},${PT.lon.toFixed(5)}`,pl:PT.n}:{s:st}),d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
 
 // ---------- calcul ----------
 function compute(keys){
@@ -289,6 +312,7 @@ async function render(fly){
   writeHash();
   [...$('stations').children].forEach((c,j)=>c.setAttribute('aria-pressed',mode==='station'&&j===st));
   markers.forEach((m,j)=>m.getElement().querySelector('.st-marker').classList.toggle('on',mode==='station'&&j===st));
+  drawPin();
   const keys=tileKeys(CENTER,radius()); await loadTiles(keys);
   const R=compute(keys);
   if(mode==='gps'){ const {a,b}=segments(); const same=a.toDateString()===b.toDateString();
@@ -367,7 +391,7 @@ function onFix(p){
   if(SIM&&!p.sim) return;                    // GPS réel ignoré pendant la simulation
   const c=p.coords; lastFix={lat:c.latitude,lon:c.longitude,acc:c.accuracy,hd:c.heading,sp:c.speed,t:Date.now()};
   if(map){
-    if(!carMarker){ const el=document.createElement('div'); el.className='car'; el.innerHTML='<div class="hd"></div><div class="cdot"></div>'; carMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'});
+    if(!carMarker){ const el=document.createElement('div'); el.className='car'; el.innerHTML='<div class="hd"></div><div class="cdot"></div>'; carMarker=new GL.Marker({element:el,rotationAlignment:'map'});
       let last=null, tk=0;
       carMarker.on('dragstart',()=>{ last=carMarker.getLngLat() });
       carMarker.on('drag',()=>{ const q=carMarker.getLngLat(), t0=Date.now(); if(t0-tk<250) return; tk=t0; simDrive(last,q); last=q });
@@ -399,7 +423,7 @@ function enterSim(at){
   $('simBtn').hidden=true; $('simBox').hidden=false; $('gpsStart').hidden=true;
   $('simTime').value=localInput(now());
   clearInterval(simTimer); simTimer=setInterval(()=>{ if(SIM&&lastFix&&mode==='gps') recalc(false,true) },60000);
-  const c=at||(lastFix&&{lat:lastFix.lat,lon:lastFix.lon})||(map&&{lat:map.getCenter().lat,lon:map.getCenter().lng})||META.stations[st];
+  const c=at||(lastFix&&{lat:lastFix.lat,lon:lastFix.lon})||(map&&{lat:map.getCenter().lat,lon:map.getCenter().lng})||META.stations[Math.max(st,0)];
   lastCalc=null; follow(true); simFeed(c.lat,c.lon,null,0);
 }
 function exitSim(){
@@ -411,6 +435,39 @@ function exitSim(){
   if(map&&map.getSource('p')){ map.getSource('p').setData({type:'FeatureCollection',features:[]}); map.getSource('ring').setData({type:'FeatureCollection',features:[]}) }
   setStatus('Position inactive',false); writeHash();
   if(simResume) startGps(); else { $('gpsStart').hidden=false; $('gpsStart').textContent='Activer ma position' }
+}
+
+// ---------- recherche d'adresse (Mapbox) ----------
+function drawPin(){ if(!map||!GL) return;
+  if(mode==='station'&&PT){ if(!ptMarker){ const el=document.createElement('div'); el.className='pin'; ptMarker=new GL.Marker({element:el,anchor:'bottom'}) } ptMarker.setLngLat([PT.lon,PT.lat]); if(!ptMarker.getElement().isConnected) ptMarker.addTo(map) }
+  else if(ptMarker) ptMarker.remove() }
+function clearPt(){ PT=null; $('q').value=''; hideSugg(); if(ptMarker) ptMarker.remove() }
+let qTimer=null, qAbort=null, SUGG=[], sIdx=-1;
+function hideSugg(){ $('sugg').hidden=true; $('sugg').innerHTML=''; SUGG=[]; sIdx=-1; $('q').setAttribute('aria-expanded','false') }
+function showSugg(){ const u=$('sugg');
+  u.innerHTML=SUGG.length?SUGG.map((f,i)=>`<li role="option" id="sg${i}" data-i="${i}" aria-selected="${i===sIdx}"><b>${f.n}</b><span>${f.sub}</span></li>`).join(''):'<li class="none">Aucun résultat sur l\'île de Montréal</li>';
+  u.hidden=false; $('q').setAttribute('aria-expanded','true');
+  u.querySelectorAll('li[data-i]').forEach(li=>li.onmousedown=e=>{ e.preventDefault(); pickSugg(+li.dataset.i) }) }
+async function geocode(q){
+  qAbort&&qAbort.abort(); qAbort=new AbortController();
+  const u=`https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&access_token=${encodeURIComponent(MAPBOX_TOKEN)}&language=fr&country=ca&limit=5&autocomplete=true&proximity=-73.60,45.52&bbox=-73.99,45.40,-73.47,45.71`;
+  try{ const j=await (await fetch(u,{signal:qAbort.signal})).json();
+    SUGG=(j.features||[]).map(f=>({n:f.properties.name||f.properties.full_address,sub:f.properties.place_formatted||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}));
+    sIdx=SUGG.length?0:-1; showSugg() }catch(e){ if(e.name!=='AbortError'){ SUGG=[]; $('sugg').innerHTML='<li class="none">Recherche indisponible</li>'; $('sugg').hidden=false } } }
+function pickSugg(i){ const f=SUGG[i]; if(!f) return;
+  PT={lat:f.lat,lon:f.lon,n:f.n}; st=-1; $('q').value=f.n; hideSugg(); $('q').blur();
+  sel=null; zoneSel=null; CENTER={lat:f.lat,lon:f.lon}; render(true) }
+function initSearch(){
+  if(!MAPBOX_TOKEN||GL!==window.mapboxgl) return;
+  $('searchBox').hidden=false; $('mSt').textContent='Station ou adresse';
+  if(PT) $('q').value=PT.n;
+  $('q').addEventListener('input',()=>{ clearTimeout(qTimer); const q=$('q').value.trim(); if(q.length<3){ hideSugg(); return } qTimer=setTimeout(()=>geocode(q),250) });
+  $('q').addEventListener('keydown',e=>{ if($('sugg').hidden) return;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); if(!SUGG.length) return; sIdx=(sIdx+(e.key==='ArrowDown'?1:SUGG.length-1))%SUGG.length; showSugg(); $('q').setAttribute('aria-activedescendant','sg'+sIdx) }
+    else if(e.key==='Enter'){ e.preventDefault(); pickSugg(Math.max(sIdx,0)) }
+    else if(e.key==='Escape') hideSugg() });
+  $('q').addEventListener('blur',()=>setTimeout(hideSugg,150));
+  $('q').addEventListener('search',()=>{ if(!$('q').value&&PT){ clearPt(); if(st<0) st=2; const s=META.stations[st]; CENTER={lat:s.lat,lon:s.lon}; render(true) } });
 }
 
 // ---------- modes ----------
@@ -440,7 +497,7 @@ function setMode(m,initial){
     if(!initial&&watchId==null) auto();       // geste de l'utilisateur : on demande tout de suite
   } else {
     $('recenter').hidden=true;
-    const s=META.stations[st]; CENTER={lat:s.lat,lon:s.lon}; render(true);
+    const s=stCenter(); CENTER={lat:s.lat,lon:s.lon}; render(true);
   }
 }
 
@@ -456,7 +513,7 @@ function openSV(lat,lon,h,ti,sd){
   $('svsides').querySelectorAll('button').forEach(b=>b.onclick=()=>openSV(lat,lon,heading(tr,+b.dataset.s),ti,+b.dataset.s));
   $('svbox').classList.add('on');
   if(map){
-    if(!svMarker){ const el=document.createElement('div'); el.innerHTML='<svg class="svcone" viewBox="-22 -22 44 44"><path d="M0 0 L-12 -20 A23 23 0 0 1 12 -20 Z" fill="#F2B233" fill-opacity=".55" stroke="#B07A00" stroke-width="1.5"/><circle r="6" fill="#F2B233" stroke="#fff" stroke-width="2.5"/></svg>'; svMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'}) }
+    if(!svMarker){ const el=document.createElement('div'); el.innerHTML='<svg class="svcone" viewBox="-22 -22 44 44"><path d="M0 0 L-12 -20 A23 23 0 0 1 12 -20 Z" fill="#F2B233" fill-opacity=".55" stroke="#B07A00" stroke-width="1.5"/><circle r="6" fill="#F2B233" stroke="#fff" stroke-width="2.5"/></svg>'; svMarker=new GL.Marker({element:el,rotationAlignment:'map'}) }
     svMarker.setLngLat([lon,lat]).setRotation(h).addTo(map);
     map.easeTo({center:[lon,lat],zoom:Math.max(map.getZoom(),17),padding:{bottom:$('map').clientHeight*0.55},duration:600});
   }
@@ -468,9 +525,10 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('svbox').classLi
 
 // ---------- carte ----------
 function initMap(){
-  const s=META.stations[st];
-  map=new maplibregl.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:{compact:true}});
-  map.addControl(new maplibregl.NavigationControl({showCompass:true}),'top-right');
+  const s=mode==='station'?stCenter():META.stations[Math.max(st,0)];
+  map=new GL.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:false});
+  map.addControl(new GL.AttributionControl({compact:true}));
+  map.addControl(new GL.NavigationControl({showCompass:true}),'top-right');
   map.on('dragstart',()=>{ if(mode==='gps') follow(false) });
   map.on('load',()=>{
     $('loading')?.remove();
@@ -489,8 +547,8 @@ function initMap(){
     map.on('mouseenter','hit',()=>map.getCanvas().style.cursor='pointer');
     map.on('mouseleave','hit',()=>map.getCanvas().style.cursor='');
     META.stations.forEach((s,i)=>{ const el=document.createElement('div'); el.innerHTML=`<div class="st-marker"></div><div class="st-label" style="position:absolute;left:0;top:0">${s.n}</div>`;
-      el.querySelector('.st-marker').onclick=e=>{e.stopPropagation(); st=i; if(mode!=='station') setMode('station'); else { sel=null; zoneSel=null; CENTER={lat:s.lat,lon:s.lon}; render(true) } };
-      markers.push(new maplibregl.Marker({element:el}).setLngLat([s.lon,s.lat]).addTo(map)) });
+      el.querySelector('.st-marker').onclick=e=>{e.stopPropagation(); st=i; clearPt(); if(mode!=='station') setMode('station'); else { sel=null; zoneSel=null; CENTER={lat:s.lat,lon:s.lon}; render(true) } };
+      markers.push(new GL.Marker({element:el}).setLngLat([s.lon,s.lat]).addTo(map)) });
     if(lastFix) onFix({coords:{latitude:lastFix.lat,longitude:lastFix.lon,accuracy:lastFix.acc,heading:lastFix.hd,speed:lastFix.sp}});
     applyLineStyle();
     if(CENTER) render(true);
@@ -508,7 +566,7 @@ function initMap(){
   legend();
   META=await (await fetch('data/meta.json')).json(); META.tileSet=new Set(META.tiles);
   $('gen').textContent=new Date(META.generated+'T12:00').toLocaleDateString('fr-CA',{day:'numeric',month:'long',year:'numeric'});
-  META.stations.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.textContent=s.n;b.onclick=()=>{st=i;sel=null;zoneSel=null;CENTER={lat:s.lat,lon:s.lon};render(true)};$('stations').appendChild(b)});
+  META.stations.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.textContent=s.n;b.onclick=()=>{st=i;clearPt();sel=null;zoneSel=null;CENTER={lat:s.lat,lon:s.lon};render(true)};$('stations').appendChild(b)});
   ['date','t1','t2'].forEach(id=>$(id).addEventListener('change',()=>render(false)));
   $('rad').addEventListener('change',()=>render(true));
   $('dur').addEventListener('change',()=>{ store.set('dur',$('dur').value); render(false) });
@@ -520,6 +578,8 @@ function initMap(){
   $('simBtn').onclick=()=>enterSim(); $('simQuit').onclick=exitSim;
   $('simTime').addEventListener('change',()=>{ const d=new Date($('simTime').value); if(!SIM||isNaN(d)) return; SIM.off=d-Date.now(); if(lastFix) recalc(false,true) });
   $('simNow').onclick=()=>{ if(!SIM) return; SIM.off=0; $('simTime').value=localInput(now()); if(lastFix) recalc(false,true) };
+  await loadMapLib();
+  initSearch();
   initMap();
   setMode(mode,true);
 })();

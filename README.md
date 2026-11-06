@@ -34,6 +34,17 @@ La localisation exige HTTPS (fourni par GitHub Pages) et l'autorisation du navig
 3. *Settings → Pages → Custom domain* : `garetoiaumetro.lemieuxsamson.com`, puis *Enforce HTTPS*. Côté DNS : enregistrement `CNAME` `garetoiaumetro` → `<utilisateur>.github.io`.
 4. Chaque `push` sur `main` déclenche `.github/workflows/deploy.yml`, qui assemble le site et le publie.
 
+## Fond Mapbox et recherche d'adresse (jeton Mapbox)
+
+Avec un jeton Mapbox, la carte utilise Mapbox GL JS (style *Light*) et le mode « Station ou adresse » offre une recherche d'adresse (Mapbox Geocoding, limitée à l'île de Montréal). Sans jeton, la page revient à MapLibre + OpenFreeMap, sans recherche.
+
+1. Sur [account.mapbox.com](https://account.mapbox.com/access-tokens/), créer un jeton **public** (`pk.…`), portées par défaut seulement.
+2. Dans *URL restrictions*, ajouter `https://garetoiaumetro.lemieuxsamson.com` (et `http://localhost:8000` pour les tests locaux).
+3. Dans le dépôt : *Settings → Secrets and variables → Actions → New repository secret*, nom `MAPBOX_TOKEN`.
+4. Relancer *Actions → Déploiement → Run workflow*.
+
+Niveaux gratuits Mapbox : 50 000 chargements de carte et 100 000 requêtes de géocodage par mois.
+
 ## Street View intégré (clé Google)
 
 Sans clé, les boutons Street View ouvrent Google Maps dans un nouvel onglet. Avec une clé, Street View s'affiche sous la carte, orienté vers le côté de rue choisi.
