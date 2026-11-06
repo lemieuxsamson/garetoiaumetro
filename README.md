@@ -45,6 +45,8 @@ Avec un jeton Mapbox, la carte utilise Mapbox GL JS (style *Light*) et le mode �
 
 Niveaux gratuits Mapbox : 50 000 chargements de carte et 100 000 requêtes de géocodage par mois.
 
+**Compte sans moyen de paiement (accès « démo »)** : un seul jeton, non restreignable par URL, avec des plafonds plus bas; aucune facturation n'est possible. Si Mapbox refuse le jeton (401/403) ou signale une limite (429), la page repasse automatiquement sur OpenFreeMap, masque la recherche d'adresse et n'essaie plus Mapbox pendant 6 h sur cet appareil. Après l'ajout d'un moyen de paiement, créer un nouveau jeton restreint à l'URL du site et remplacer le secret.
+
 ## Street View intégré (clé Google)
 
 Sans clé, les boutons Street View ouvrent Google Maps dans un nouvel onglet. Avec une clé, Street View s'affiche sous la carte, orienté vers le côté de rue choisi.

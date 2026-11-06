@@ -202,8 +202,26 @@ const MBX='https://api.mapbox.com/mapbox-gl-js/v3.34.2/', MLB='https://unpkg.com
 let GL=null, STYLE='https://tiles.openfreemap.org/styles/positron';
 function loadScript(src){ return new Promise((ok,ko)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=ko; document.head.appendChild(s) }) }
 function loadCss(href){ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; document.head.appendChild(l) }
+// Mapbox refusé (jeton invalide, plafond démo atteint…) : on retient le refus 6 h et on repasse sur OpenFreeMap
+const MBX_BLOCK='mbx-blocked-until';
+function mapboxBlocked(){ return +(store.get(MBX_BLOCK)||0)>Date.now() }
+let fellBack=false;
+async function fallbackToMapLibre(reason){
+  if(fellBack||GL!==window.mapboxgl) return; fellBack=true;
+  console.warn('Mapbox refusé ('+reason+'), repli sur OpenFreeMap');
+  store.set(MBX_BLOCK,String(Date.now()+6*3600e3));
+  try{ map&&map.remove() }catch(e){}
+  map=null; markers=[]; carMarker=null; svMarker=null; ptMarker=null;
+  $('searchBox').hidden=true; $('mSt').textContent='Près d\'une station'; hideSugg();
+  if(!$('loading')){ const d=document.createElement('div'); d.className='loading'; d.id='loading'; d.textContent='Chargement de la carte…'; $('map').prepend(d) }
+  STYLE='https://tiles.openfreemap.org/styles/positron';
+  loadCss(MLB+'maplibre-gl.css'); await loadScript(MLB+'maplibre-gl.js'); GL=maplibregl;
+  initMap();
+}
+const refused=e=>{ const er=e&&e.error||{}, s=er.status, m=String(er.message||''), u=String(er.url||'');
+  return [401,403,429].includes(s)||(/api\.mapbox\.com|mapbox:\/\//.test(u+m)&&/401|403|429|unauthori|forbidden|too many|limit/i.test(m)) };
 async function loadMapLib(){
-  if(MAPBOX_TOKEN){ try{ loadCss(MBX+'mapbox-gl.css'); await loadScript(MBX+'mapbox-gl.js');
+  if(MAPBOX_TOKEN&&!mapboxBlocked()){ try{ loadCss(MBX+'mapbox-gl.css'); await loadScript(MBX+'mapbox-gl.js');
     mapboxgl.accessToken=MAPBOX_TOKEN; GL=mapboxgl; STYLE='mapbox://styles/mapbox/light-v11'; return }catch(e){ console.warn('Mapbox indisponible, repli sur MapLibre') } }
   loadCss(MLB+'maplibre-gl.css'); await loadScript(MLB+'maplibre-gl.js'); GL=maplibregl }
 const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
@@ -451,7 +469,9 @@ function showSugg(){ const u=$('sugg');
 async function geocode(q){
   qAbort&&qAbort.abort(); qAbort=new AbortController();
   const u=`https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&access_token=${encodeURIComponent(MAPBOX_TOKEN)}&language=fr&country=ca&limit=5&autocomplete=true&proximity=-73.60,45.52&bbox=-73.99,45.40,-73.47,45.71`;
-  try{ const j=await (await fetch(u,{signal:qAbort.signal})).json();
+  try{ const r=await fetch(u,{signal:qAbort.signal});
+    if([401,403,429].includes(r.status)){ store.set(MBX_BLOCK,String(Date.now()+6*3600e3)); hideSugg(); $('searchBox').hidden=true; $('mSt').textContent='Près d\'une station'; return }
+    const j=await r.json();
     SUGG=(j.features||[]).map(f=>({n:f.properties.name||f.properties.full_address,sub:f.properties.place_formatted||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}));
     sIdx=SUGG.length?0:-1; showSugg() }catch(e){ if(e.name!=='AbortError'){ SUGG=[]; $('sugg').innerHTML='<li class="none">Recherche indisponible</li>'; $('sugg').hidden=false } } }
 function pickSugg(i){ const f=SUGG[i]; if(!f) return;
@@ -553,7 +573,9 @@ function initMap(){
     applyLineStyle();
     if(CENTER) render(true);
   });
-  map.on('error',e=>{ if(!map.isStyleLoaded()&&$('loading')) $('loading').textContent='Le fond de carte n\'a pas pu être chargé.' });
+  map.on('error',e=>{ if(GL===window.mapboxgl&&refused(e)){ fallbackToMapLibre(e.error&&e.error.status||'refus'); return }
+    if(map&&!map.isStyleLoaded()&&$('loading')) $('loading').textContent='Le fond de carte n\'a pas pu être chargé.' });
+  if(GL===window.mapboxgl){ const m0=map; setTimeout(()=>{ if(map===m0&&!m0.isStyleLoaded()) fallbackToMapLibre('délai') },10000) }
 }
 
 // ---------- démarrage ----------
