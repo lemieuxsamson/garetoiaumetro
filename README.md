@@ -1,22 +1,29 @@
-# Stationnement gratuit probable près du métro
+# Gare-toi au métro
 
-Carte web qui indique, pour une date et une plage horaire, les côtés de rue où le stationnement est probablement **gratuit et permis** autour des stations de la ligne verte Est (Honoré-Beaugrand, Radisson, Langelier, Cadillac, L'Assomption).
+Carte web qui indique les côtés de rue où le stationnement est probablement **gratuit et permis** à Montréal, selon l'heure, de deux façons :
 
-Site statique : `index.html` + `data.json`. Aucun serveur, aucune clé d'API.
+- **Autour de moi** : la position GPS du téléphone est suivie en temps réel; la carte montre les rues dans un rayon de 300, 500 ou 800 m, pour la durée de stationnement choisie (de maintenant à +30 min … +24 h). Le calcul se refait à chaque déplacement de 40 m et chaque minute.
+- **Près d'une station** : stations de la ligne verte Est (Honoré-Beaugrand à L'Assomption), pour une date et une plage horaire.
+
+Site statique : `index.html` + `data/` (règles + tuiles d'environ 1 km chargées à la demande). Aucun serveur.
 
 ## Fonctionnement
 
 1. Chaque poteau de signalisation est rattaché au tronçon de rue le plus proche (Géobase), du côté gauche ou droit.
 2. Les poteaux sont ordonnés le long du tronçon; chaque panneau s'applique du poteau vers le suivant dans le sens de sa flèche (sans flèche : les deux sens).
-3. Dans le navigateur, chaque portion est évaluée pour la date et la plage choisies :
-   - vert : aucun panneau actif
+3. Dans le navigateur, chaque portion est évaluée pour la plage choisie (sur plusieurs jours au besoin) :
+   - vert : aucun panneau actif (ou durée maximale suffisante pour la durée prévue)
    - vert pâle pointillé : aucun panneau répertorié de ce côté (rues locales et collectrices seulement)
    - ambre : gratuit, durée limitée
    - bleu : tarifé
-   - rouge : interdit, réservé ou vignette de résident (S3R)
-   - gris : non évalué (artère ou autoroute sans panneau répertorié)
+   - rouge : interdit, réservé ou vignette de résident (S3R, permis de secteur)
+   - gris : non évalué (artère sans panneau, ou secteur où la signalisation est peu répertoriée)
 
-Limites : les libellés de panneaux sont interprétés automatiquement; les opérations de déneigement ne sont pas incluses; « jours d'école » est approximé à lun.-ven., sept. à juin. **Outil non officiel : la signalisation sur place a toujours préséance.**
+Couverture : la densité de poteaux par km de rue est calculée par arrondissement. En deçà de 15 poteaux/km (Saint-Laurent, Verdun, LaSalle, Lachine, Montréal-Nord, Saint-Léonard, Pierrefonds-Roxboro, L'Île-Bizard, villes liées), les rues sans panneau ne sont pas présumées libres.
+
+Limites : **les places tarifées (bornes) ne sont pas incluses**, le tarif n'étant pas indiqué par des panneaux; les libellés de panneaux sont interprétés automatiquement; les opérations de déneigement ne sont pas incluses; « jours d'école » est approximé à lun.-ven., sept. à juin. **Outil non officiel : la signalisation sur place a toujours préséance.**
+
+La localisation exige HTTPS (fourni par GitHub Pages) et l'autorisation du navigateur. En mode GPS, la page garde l'écran allumé quand le navigateur le permet.
 
 ## Mise en ligne avec GitHub Pages
 
@@ -42,14 +49,14 @@ Test local : copier `config.example.js` en `config.js` (ignoré par git), y mett
 
 ## Mise à jour des données
 
-Automatique : le workflow `.github/workflows/maj-donnees.yml` télécharge les deux jeux de données chaque lundi, reconstruit `data.json` et le publie s'il a changé. Pour le lancer à la main : onglet *Actions → Mise à jour des données → Run workflow*.
+Automatique : le workflow `.github/workflows/maj-donnees.yml` télécharge les deux jeux de données chaque lundi, reconstruit les tuiles de `data/` et les publie si elles ont changé. Pour le lancer à la main : onglet *Actions → Mise à jour des données → Run workflow*.
 
 Manuelle :
 
 ```bash
 pip install pandas
 python scripts/fetch_sources.py          # ou déposer les deux fichiers à la racine
-python scripts/build_data.py signalisation_stationnement.csv geobase.json data.json
+python scripts/build_data.py signalisation_stationnement.csv geobase.json data
 ```
 
 Pour ajouter des stations, modifier la liste `STATIONS` au début de `scripts/build_data.py`.
@@ -57,7 +64,7 @@ Pour ajouter des stations, modifier la liste `STATIONS` au début de `scripts/bu
 ## Licences
 
 - Code (`index.html`, `scripts/`) : licence MIT, voir `LICENSE`.
-- `data.json` : données dérivées, sous licence CC BY 4.0 (Ville de Montréal).
+- `data/` : données dérivées, sous licence CC BY 4.0 (Ville de Montréal).
 
 ## Sources
 

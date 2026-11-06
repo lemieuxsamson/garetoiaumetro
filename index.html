@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stationnement gratuit probable près du métro</title>
-<meta name="description" content="Carte des rues où le stationnement est probablement gratuit et permis, selon la date et l'heure, autour des stations de la ligne verte Est à Montréal.">
+<title>Gare-toi au métro</title>
+<meta name="description" content="Carte des côtés de rue où le stationnement est probablement gratuit et permis à Montréal, autour de votre position ou d'une station de métro, selon l'heure.">
+<meta name="theme-color" content="#16201A">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🅿️</text></svg>">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,11 +26,11 @@ html,body{height:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 "Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
 .app{display:grid;grid-template-rows:auto 62vh auto;min-height:100%}
 @media(min-width:900px){.app{grid-template-columns:400px 1fr;grid-template-rows:100vh;height:100vh}}
-.side{padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));display:grid;gap:14px;align-content:start}
+.side{padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));display:grid;gap:14px;align-content:start;grid-auto-rows:max-content}
 @media(min-width:900px){.side{overflow-y:auto;border-right:1px solid var(--line)}}
 .side.bottom{padding-top:16px}
 @media(min-width:900px){.side.bottom{display:none}}
-@media(max-width:899px){.side .only-desk{display:none}}
+@media(max-width:899px){.side .only-desk{display:none}.lede{display:none}h1{font-size:24px}}
 h1{font:700 27px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;margin:0 0 4px}
 .lede{margin:0;color:var(--soft);font-size:14px}
 .stations{display:flex;gap:6px;flex-wrap:wrap}
@@ -81,6 +82,27 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .st-marker{width:18px;height:18px;border-radius:50%;background:#16201A;border:4px solid #fff;box-shadow:0 0 0 1.5px #16201A;cursor:pointer}
 .st-marker.on{width:24px;height:24px;border-width:6px}
 .st-label{font:700 15px "Barlow Condensed",sans-serif;color:#16201A;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;transform:translate(16px,-14px)}
+.modes{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink);border-radius:10px;overflow:hidden}
+.modes button{border:0;background:var(--panel);color:var(--ink);padding:9px 6px;font:600 17px "Barlow Condensed",sans-serif;cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+[hidden]{display:none!important}
+.gpsbox{display:grid;gap:10px}
+.cta{border:0;border-radius:10px;background:#1C6FD6;color:#fff;font:600 17px "Barlow Condensed",sans-serif;padding:12px;cursor:pointer}
+.status{font-size:13px;color:var(--soft);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pulse{width:9px;height:9px;border-radius:50%;background:#1C6FD6;box-shadow:0 0 0 0 rgba(28,111,214,.6);animation:pl 1.8s infinite}
+.pulse.off{background:var(--na);animation:none}
+@keyframes pl{70%{box-shadow:0 0 0 8px rgba(28,111,214,0)}100%{box-shadow:0 0 0 0 rgba(28,111,214,0)}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none}}
+.win{font-size:14px}
+.warn{font-size:13px;background:#FFF6DF;color:#5A4200;border:1px solid #F2B233;border-radius:8px;padding:8px 10px;margin:0}
+.warn:empty{display:none}
+.recenter{position:absolute;left:10px;bottom:28px;z-index:4;border:0;border-radius:999px;background:#fff;color:#16201A;box-shadow:0 2px 8px rgba(0,0,0,.25);font:600 14px "Barlow",sans-serif;padding:8px 14px;cursor:pointer}
+.car{width:22px;height:22px;position:relative}
+.car .cdot{position:absolute;inset:3px;border-radius:50%;background:#1C6FD6;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 1px 4px rgba(0,0,0,.3)}
+.car .hd{position:absolute;left:50%;top:-11px;width:0;height:0;margin-left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid #1C6FD6;opacity:0}
+.car.moving .hd{opacity:1}
+.tiles-loading{position:absolute;top:10px;left:10px;z-index:4;background:var(--panel);color:var(--soft);font-size:13px;border-radius:999px;padding:4px 10px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:14px}
 </style>
 </head>
@@ -88,22 +110,42 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 <div class="app">
  <aside class="side" id="panel">
   <header>
-   <h1>Où se garer gratuitement près du métro</h1>
-   <p class="lede">Ligne verte, d'Honoré-Beaugrand à L'Assomption. Chaque côté de rue est coloré selon ce que ses panneaux permettent pendant votre plage horaire.</p>
+   <h1>Gare-toi au métro</h1>
+   <p class="lede">Chaque côté de rue est coloré selon ce que ses panneaux permettent pendant votre plage horaire.</p>
   </header>
-  <div class="stations" role="group" aria-label="Station" id="stations"></div>
-  <div class="row">
-   <label>Date<input type="date" id="date"></label>
-   <label>De<input type="time" id="t1" step="900"></label>
-   <label>À<input type="time" id="t2" step="900"></label>
+  <div class="modes" role="group" aria-label="Mode">
+   <button type="button" id="mGps" aria-pressed="false">Autour de moi</button>
+   <button type="button" id="mSt" aria-pressed="false">Près d'une station</button>
   </div>
-  <label class="inline">Rayon de marche
-   <select id="rad"><option value="400">400 m (5 min)</option><option value="600">600 m (8 min)</option><option value="900" selected>900 m (11 min)</option></select></label>
+  <div class="gpsbox" id="gpsBox" hidden>
+   <button type="button" class="cta" id="gpsStart">Activer ma position</button>
+   <div class="row2">
+    <label>Je me gare pour
+     <select id="dur"><option value="30">30 min</option><option value="60">1 h</option><option value="120" selected>2 h</option><option value="240">4 h</option><option value="480">8 h</option><option value="720">12 h</option><option value="1440">24 h</option></select></label>
+    <label>Rayon
+     <select id="gRad"><option value="300">300 m</option><option value="500" selected>500 m</option><option value="800">800 m</option></select></label>
+   </div>
+   <div class="status" id="gpsStatus"><i class="pulse off"></i><span>Position inactive</span></div>
+   <div class="win" id="gpsWin"></div>
+  </div>
+  <div id="stBox" hidden style="display:grid;gap:14px">
+   <div class="stations" role="group" aria-label="Station" id="stations"></div>
+   <div class="row">
+    <label>Date<input type="date" id="date"></label>
+    <label>De<input type="time" id="t1" step="900"></label>
+    <label>À<input type="time" id="t2" step="900"></label>
+   </div>
+   <label class="inline">Rayon de marche
+    <select id="rad"><option value="400">400 m (5 min)</option><option value="600">600 m (8 min)</option><option value="900" selected>900 m (11 min)</option></select></label>
+  </div>
   <p class="err" id="err" role="alert"></p>
+  <p class="warn" id="warn"></p>
   <div class="tally" id="tally" aria-live="polite" title="Longueur de bordure, les deux côtés de rue"></div>
   <div class="only-desk" id="deskSlot"></div>
  </aside>
  <div id="map"><div class="loading" id="loading">Chargement de la carte…</div>
+  <div class="tiles-loading" id="tl" hidden>Chargement des rues…</div>
+  <button type="button" class="recenter" id="recenter" hidden>Recentrer sur moi</button>
   <div class="svbox" id="svbox" role="region" aria-label="Street View"><div class="svbar"><b id="svtitle"></b><span id="svsides"></span><a id="svext" target="_blank" rel="noopener">Ouvrir dans Google Maps</a><button class="x" aria-label="Fermer Street View" id="svclose">×</button></div><iframe id="sviframe" title="Street View" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>
  </div>
  <section class="side bottom" id="mobSlot"></section>
@@ -116,7 +158,8 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
    <ul class="zones" id="zones"></ul>
   </section>
   <div class="legend" id="legend"></div>
-  <p class="note">Chaque côté de rue est évalué portion par portion, en suivant les flèches des panneaux. Un côté sans panneau répertorié est normalement permis, mais les données peuvent être incomplètes. Déneigement non inclus : vérifiez Info-Neige l'hiver. « Jours d'école » est approximé à lun.-ven., sept. à juin.</p>
+  <p class="note"><b>Places tarifées non incluses :</b> le tarif dépend des bornes, pas des panneaux. Au centre-ville et sur les artères commerciales, une rue « libre » peut être payante.</p>
+  <p class="note">Chaque côté de rue est évalué portion par portion, en suivant les flèches des panneaux. Un côté sans panneau répertorié est normalement permis, mais les données peuvent être incomplètes; dans les secteurs où la signalisation est peu répertoriée (ex. Verdun, LaSalle, villes liées), ces rues restent grises. Déneigement non inclus : vérifiez Info-Neige l'hiver. « Jours d'école » est approximé à lun.-ven., sept. à juin. En voiture, consultez la carte à l'arrêt ou confiez-la à un passager.</p>
   <p class="note">Données : Ville de Montréal, <a href="https://donnees.montreal.ca/dataset/stationnement-sur-rue-signalisation-courant" target="_blank" rel="noopener">Signalisation (stationnement sur rue)</a> et <a href="https://donnees.montreal.ca/dataset/geobase" target="_blank" rel="noopener">Géobase</a>, licence CC BY 4.0, extrait du <span id="gen"></span>. Fond de carte : OpenFreeMap, OpenMapTiles, © contributeurs OpenStreetMap. Outil personnel non officiel : fiez-vous toujours à la signalisation sur place.</p>
 </template>
 
@@ -129,14 +172,18 @@ const GMAPS_EMBED_KEY=(window.APP_CONFIG&&window.APP_CONFIG.GMAPS_EMBED_KEY)||''
 const STYLE='https://tiles.openfreemap.org/styles/positron';
 const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
 const LAB={0:'Libre (panneaux vérifiés)',4:'Sans panneau, libre probable',1:'Gratuit, durée limitée',2:'Tarifé',3:'Interdit ou réservé',5:'Non évalué'};
+const JOURS=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
 const $=id=>document.getElementById(id);
 const K=111320;
-let D, map, st=2, sel=null, zoneSel=null, ACT=[], TRS=[], FEAT=[], markers=[];
+let META, map, mode='station', st=2, sel=null, zoneSel=null, ACT=[], TRS={}, FEAT=[], markers=[], CENTER=null, STAY=0;
+const TILES=new Map(), TR=[];               // tuiles chargées ; tronçons (id global)
 const pad=n=>String(n).padStart(2,'0');
 const toMin=v=>{const [h,m]=v.split(':').map(Number);return h*60+m};
-const fmtD=d=>d>=60?(d/60)+' h':d+' min';
+const fmtD=d=>d>=60?(d%60?`${Math.floor(d/60)} h ${pad(d%60)}`:`${d/60} h`):d+' min';
+const fmtT=d=>`${d.getHours()} h ${pad(d.getMinutes())}`;
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 function monthOk(m,d){ if(!m) return true; const v=(d.getMonth()+1)*100+d.getDate(), a=m[0]*100+m[1], b=m[2]*100+m[3]; return a<=b?(v>=a&&v<=b):(v>=a||v<=b) }
-function active(r,wd,S,E){ for(const [a,b,days] of r.w){ if(!days.includes(wd)) continue; for(const [x,y] of (a<b?[[a,b]]:[[a,1440],[0,b]])) if(x<E&&y>S) return true } return false }
+function activeSeg(r,wd,S,E){ for(const [a,b,days] of r.w){ if(!days.includes(wd)) continue; for(const [x,y] of (a<b?[[a,b]]:[[a,1440],[0,b]])) if(x<E&&y>S) return true } return false }
 const sev=c=>c==='limite'?1:c==='tarife'?2:3;
 function links(lat,lon,extra){ const ll=`${lat.toFixed(6)},${lon.toFixed(6)}`;
   return `<div class="nav"><a href="https://www.google.com/maps/dir/?api=1&destination=${ll}&travelmode=driving" target="_blank" rel="noopener">Google Maps</a><a href="https://maps.apple.com/?daddr=${ll}&dirflg=d" target="_blank" rel="noopener">Plans</a><a href="https://waze.com/ul?ll=${ll}&navigate=yes" target="_blank" rel="noopener">Waze</a>${extra||''}</div>`}
@@ -144,49 +191,90 @@ function heading(tr,sd){ const iv=tr.sides[1].iv.length?tr.sides[1].iv:tr.sides[
   const gx=(b[0]-a[0])*Math.cos(a[1]*Math.PI/180), gy=b[1]-a[1]; let h=Math.atan2(-gy,gx)*180/Math.PI; if(sd===-1) h+=180; return Math.round((h+360)%360) }
 function svUrl(lat,lon,h){ return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80` }
 function sv(lat,lon,h,label,ti,sd){ if(GMAPS_EMBED_KEY) return `<button type="button" class="sv" data-lat="${lat}" data-lon="${lon}" data-h="${h}" data-ti="${ti}" data-sd="${sd}">${label||'Street View'}</button>`;
-  return `<a class="sv" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80" target="_blank" rel="noopener">${label||'Street View'}</a>` }
+  return `<a class="sv" href="${svUrl(lat,lon,h)}" target="_blank" rel="noopener">${label||'Street View'}</a>` }
 function entre(t){const e=t.e.filter(Boolean); if(e.length===2&&e[0]!==e[1]) return `entre ${e[0]} et ${e[1]}`; if(e.length) return `près de l'intersection avec ${e[0]}`; return ''}
 const distM=(lat,lon,s)=>Math.hypot((lon-s.lon)*K*Math.cos(s.lat*Math.PI/180),(lat-s.lat)*K);
 function circle(s,r){const out=[];for(let i=0;i<=72;i++){const a=i/72*2*Math.PI; out.push([s.lon+Math.cos(a)*r/(K*Math.cos(s.lat*Math.PI/180)), s.lat+Math.sin(a)*r/K])} return out}
+const radius=()=>+(mode==='gps'?$('gRad').value:$('rad').value);
+const fromWhere=()=>mode==='gps'?'de vous':'de la station';
+
+// ---------- tuiles ----------
+function tileKeys(c,R){ const [TLA,TLO]=META.tile, m=R+300, dLat=m/K, dLon=m/(K*Math.cos(c.lat*Math.PI/180)), out=[];
+  for(let y=Math.floor((c.lat-dLat)/TLA);y<=Math.floor((c.lat+dLat)/TLA);y++) for(let x=Math.floor((c.lon-dLon)/TLO);x<=Math.floor((c.lon+dLon)/TLO);x++){ const k=`${y}_${x}`; if(META.tileSet.has(k)) out.push(k) }
+  return out }
+async function loadTiles(keys){
+  const miss=keys.filter(k=>!TILES.has(k)); if(!miss.length) return;
+  $('tl').hidden=false;
+  await Promise.all(miss.map(async k=>{ try{
+    const j=await (await fetch(`data/tiles/${k}.json`)).json(); const base=TR.length;
+    j.tr.forEach(t=>TR.push(t));
+    TILES.set(k,j.f.map(([ti,side,t0,t1,rs,uns,co])=>({gid:base+ti,side,t0,t1,rs,uns,co})));
+  }catch(e){ TILES.set(k,[]) } }));
+  $('tl').hidden=true;
+}
+
+// ---------- plage horaire ----------
+function segments(){
+  if(mode==='gps'){ const dur=+$('dur').value, a=new Date(), b=new Date(a.getTime()+dur*60000), out=[];
+    for(let d=new Date(a.getFullYear(),a.getMonth(),a.getDate()); d<b; d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)){
+      const S=d<a?a.getHours()*60+a.getMinutes():0, nd=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1);
+      const E=b<nd?b.getHours()*60+b.getMinutes():1440; if(E>S) out.push({d,wd:(d.getDay()+6)%7,S,E}) }
+    return {segs:out,stay:dur,a,b} }
+  const S=toMin($('t1').value||'00:00'), E=toMin($('t2').value||'23:59');
+  const [y,mo,da]=($('date').value||'').split('-').map(Number); const d=new Date(y,mo-1,da);
+  $('err').textContent=isNaN(d)?'Choisissez une date.':!(E>S)?'L\'heure de fin doit suivre l\'heure de début, le même jour.':'';
+  return {segs:[{d,wd:(d.getDay()+6)%7,S,E:Math.max(E,S+1)}],stay:Math.max(E-S,1)} }
 
 // ---------- état ↔ URL ----------
-function readHash(){ const p=new URLSearchParams(location.hash.slice(1)); if(p.has('s')) st=Math.min(4,Math.max(0,+p.get('s')||0));
-  if(p.get('d')) $('date').value=p.get('d'); if(p.get('de')) $('t1').value=p.get('de'); if(p.get('a')) $('t2').value=p.get('a'); if(p.get('r')) $('rad').value=p.get('r') }
-function writeHash(){ const p=new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
+function readHash(){ const p=new URLSearchParams(location.hash.slice(1));
+  if(p.get('m')==='gps') mode='gps'; else if(p.has('s')) mode='station'; else mode=store.get('mode')==='station'?'station':'gps';
+  if(p.has('s')) st=Math.min(4,Math.max(0,+p.get('s')||0));
+  if(p.get('d')) $('date').value=p.get('d'); if(p.get('de')) $('t1').value=p.get('de'); if(p.get('a')) $('t2').value=p.get('a'); if(p.get('r')) $('rad').value=p.get('r');
+  const du=p.get('dur')||store.get('dur'); if(du&&$('dur').querySelector(`option[value="${du}"]`)) $('dur').value=du;
+  const gr=p.get('gr')||store.get('gRad'); if(gr&&$('gRad').querySelector(`option[value="${gr}"]`)) $('gRad').value=gr }
+function writeHash(){ const p=mode==='gps'?new URLSearchParams({m:'gps',dur:$('dur').value,gr:$('gRad').value}):new URLSearchParams({s:st,d:$('date').value,de:$('t1').value,a:$('t2').value,r:$('rad').value}); history.replaceState(null,'','#'+p) }
 
 // ---------- calcul ----------
-function compute(){
-  const s=D.stations[st], R=+$('rad').value, S=toMin($('t1').value||'00:00'), E=toMin($('t2').value||'23:59');
-  const [y,mo,da]=($('date').value||'').split('-').map(Number); const d=new Date(y,mo-1,da); const wd=(d.getDay()+6)%7;
-  $('err').textContent=isNaN(d)?'Choisissez une date.':!(E>S)?'L\'heure de fin doit suivre l\'heure de début, le même jour.':'';
-  const E2=Math.max(E,S+1);
-  ACT=D.rules.map(r=>r.c!=='info'&&monthOk(r.m,d)&&active(r,wd,S,E2));
-  TRS=D.tr.map((t,i)=>({t,i,dist:Infinity,sides:{1:{iv:[]},'-1':{iv:[]}}}));
-  FEAT=D.f.map(([ti,side,t0,t1,rs,uns,co],fi)=>{
-    const tr=TRS[ti], evalClass=tr.t.k===0||tr.t.k===5; let s_=0,dur=null;
-    if(uns) s_=evalClass?4:5;
-    else if(!rs.length&&!evalClass) s_=5;
-    else for(const i of rs) if(ACT[i]){const v=sev(D.rules[i].c); s_=Math.max(s_,v); if(v===1) dur=dur==null?D.rules[i].d:Math.min(dur,D.rules[i].d)}
-    for(const [lo,la] of co){ const dd=distM(la,lo,s); if(dd<tr.dist) tr.dist=dd }
-    const f={fi,ti,side,t0,t1,rs,uns,co,s:s_,dur}; tr.sides[side].iv.push(f); return f });
-  for(const tr of TRS) for(const sd of [1,-1]){ const S_=tr.sides[sd]; S_.name=sd===1?tr.t.ln:tr.t.rn; S_.signed=!S_.iv.some(v=>v.uns);
+function compute(keys){
+  const R=radius(), {segs,stay}=segments(); STAY=stay;
+  ACT=META.rules.map(r=>r.c!=='info'&&segs.some(g=>monthOk(r.m,g.d)&&activeSeg(r,g.wd,g.S,g.E)));
+  TRS={}; FEAT=[];
+  for(const k of keys) for(const f0 of TILES.get(k)||[]){
+    let tr=TRS[f0.gid]; if(!tr){ const t=TR[f0.gid]; tr=TRS[f0.gid]={t,i:f0.gid,dist:Infinity,sides:{1:{iv:[]},'-1':{iv:[]}}} }
+    const evalClass=tr.t.k===0||tr.t.k===5, cv=tr.t.cv!==0; let s_=0,dur=null,ok=false;
+    if(f0.uns) s_=evalClass&&cv?4:5;
+    else if(!f0.rs.length&&(!evalClass||!cv)) s_=5;
+    else for(const i of f0.rs) if(ACT[i]){ const r=META.rules[i], v=sev(r.c);
+      if(v===1&&r.d>=stay){ ok=true; dur=dur==null?r.d:Math.min(dur,r.d); continue }      // limite suffisante pour la durée
+      s_=Math.max(s_,v); if(v===1) dur=dur==null?r.d:Math.min(dur,r.d) }
+    for(const [lo,la] of f0.co){ const dd=distM(la,lo,CENTER); if(dd<tr.dist) tr.dist=dd }
+    const f={...f0,ti:f0.gid,s:s_,dur,ok}; tr.sides[f0.side].iv.push(f); FEAT.push(f) }
+  for(const tr of Object.values(TRS)) for(const sd of [1,-1]){ const S_=tr.sides[sd]; S_.iv.sort((a,b)=>a.t0-b.t0); S_.name=sd===1?tr.t.ln:tr.t.rn; S_.signed=!S_.iv.some(v=>v.uns);
     S_.free=S_.iv.filter(v=>v.s===0).reduce((a,v)=>a+v.t1-v.t0,0);
     let best=null,cur=null; for(const v of S_.iv){ if(v.s===0){ if(cur&&Math.abs(cur.t1-v.t0)<1){cur.t1=v.t1;cur.parts.push(v)} else cur={t0:v.t0,t1:v.t1,parts:[v]}; if(!best||cur.t1-cur.t0>best.t1-best.t0) best={...cur,parts:[...cur.parts]} } else cur=null }
     S_.run=best }
-  return {s,R};
+  return R;
 }
 function midOf(parts){ const co=parts.flatMap(p=>p.co); return co[Math.floor(co.length/2)] }
 function trMid(tr){ return midOf(tr.sides[1].iv.length?tr.sides[1].iv:tr.sides[-1].iv) }
 
 // ---------- rendu ----------
-function render(fly){
-  if(!D) return;
+let rendering=false, again=false;
+async function render(fly){
+  if(!META||!CENTER) return;
+  if(rendering){ again=again||fly||'x'; return } rendering=true;
+  try{
   writeHash();
-  const {s,R}=compute();
-  [...$('stations').children].forEach((c,j)=>c.setAttribute('aria-pressed',j===st));
-  markers.forEach((m,j)=>m.getElement().querySelector('.st-marker').classList.toggle('on',j===st));
-  const inR=TRS.filter(t=>t.dist<=R);
+  [...$('stations').children].forEach((c,j)=>c.setAttribute('aria-pressed',mode==='station'&&j===st));
+  markers.forEach((m,j)=>m.getElement().querySelector('.st-marker').classList.toggle('on',mode==='station'&&j===st));
+  const keys=tileKeys(CENTER,radius()); await loadTiles(keys);
+  const R=compute(keys);
+  if(mode==='gps'){ const {a,b}=segments(); const same=a.toDateString()===b.toDateString();
+    $('gpsWin').innerHTML=`Plage évaluée : <b>${fmtT(a)} → ${same?'':JOURS[(b.getDay()+6)%7]+' '}${fmtT(b)}</b>${same?` (${JOURS[(a.getDay()+6)%7]})`:''}` }
+  const inR=Object.values(TRS).filter(t=>t.dist<=R);
   const tot={0:0,1:0,2:0,3:0,4:0,5:0}; inR.forEach(t=>[1,-1].forEach(sd=>t.sides[sd].iv.forEach(v=>tot[v.s]+=v.t1-v.t0)));
+  const all=Object.values(tot).reduce((a,b)=>a+b,0), unc=inR.filter(t=>t.t.cv===0).reduce((a,t)=>a+2*t.t.L,0);
+  $('warn').textContent=!inR.length?'Aucune rue répertoriée dans ce rayon.':unc>0.5*all?'Signalisation peu ou pas répertoriée dans ce secteur : la plupart des rues ne peuvent pas être évaluées (gris).':'';
   const km=k=>(tot[k]/1000).toFixed(1).replace('.',',');
   $('tally').innerHTML=[0,4,1,3].map(k=>`<span><i class="dot" style="background:${COL[k]}"></i>${km(k)} km ${({0:'libres',4:'sans panneau',1:'durée limitée',3:'interdits'})[k]}</span>`).join('');
   // recommandations
@@ -197,41 +285,105 @@ function render(fly){
   cand.sort((a,b)=>a.score-b.score);
   const seen=new Set(), zones=[]; for(const z of cand){ if(seen.has(z.tr.t.n)||zones.length>=8) continue; seen.add(z.tr.t.n); zones.push(z) }
   window._zones=zones;
-  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n}, côté ${S_.name}</b><span class="meta">${Math.round(tr.dist/10)*10} m, ≈ ${Math.max(1,Math.round(tr.dist*1.25/80))} min</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0],sv(z.pt[1],z.pt[0],heading(tr,z.sd),'Street View du côté '+S_.name,tr.i,z.sd))}</li>`}).join('')
-    :`<li class="empty">Aucune rue nettement favorable dans ce rayon pour cette plage. Essayez un rayon plus grand ou une autre plage horaire.</li>`;
+  const dist=d=>mode==='gps'?`${Math.round(d/10)*10} m`:`${Math.round(d/10)*10} m, ≈ ${Math.max(1,Math.round(d*1.25/80))} min`;
+  $('zones').innerHTML=zones.length?zones.map((z,i)=>{const tr=z.tr,S_=tr.sides[z.sd]; return `<li class="zone" data-i="${i}" tabindex="0" aria-current="${zoneSel===tr.i}"><div class="top"><b>${tr.t.n||'Voie sans nom'}, côté ${S_.name}</b><span class="meta">${dist(tr.dist)}</span></div><div class="meta">${entre(tr.t)}${entre(tr.t)?'. ':''}<span style="color:${COL[z.kind]};font-weight:600">${z.kind===0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:'Aucun panneau répertorié de ce côté'}</span></div>${links(z.pt[1],z.pt[0],sv(z.pt[1],z.pt[0],heading(tr,z.sd),'Street View du côté '+S_.name,tr.i,z.sd))}</li>`}).join('')
+    :`<li class="empty">Aucune rue nettement favorable dans ce rayon pour cette plage. Essayez un rayon plus grand${mode==='gps'?' ou une durée plus courte':' ou une autre plage horaire'}.</li>`;
   [...$('zones').querySelectorAll('.zone')].forEach(el=>{const f=e=>{ if(e.target.closest('a,button')) return; const z=zones[+el.dataset.i]; zoneSel=z.tr.i; select(z.tr.i,z.pt) }; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter')f(e)}});
-  // carte
+  if(sel!=null&&!TRS[sel]) { sel=null; zoneSel=null }
   if(map&&map.getSource('p')){
     map.getSource('p').setData({type:'FeatureCollection',features:FEAT.filter(f=>TRS[f.ti].dist<=R+250).map(f=>({type:'Feature',properties:{s:f.s,o:f.side===1?-1:1,ti:f.ti,in:TRS[f.ti].dist<=R?1:0},geometry:{type:'LineString',coordinates:f.co}}))});
-    map.getSource('ring').setData({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:circle(s,R)}});
+    map.getSource('ring').setData({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:circle(CENTER,R)}});
     drawSel();
-    if(fly) map.flyTo({center:[s.lon,s.lat],zoom:R<=400?15.6:R<=600?15.1:14.5,duration:900});
+    if(fly===true){ const c=circle(CENTER,R); map.fitBounds([[Math.min(...c.map(q=>q[0])),Math.min(...c.map(q=>q[1]))],[Math.max(...c.map(q=>q[0])),Math.max(...c.map(q=>q[1]))]],{padding:16,duration:900,maxZoom:17}) }
   }
   sheet();
+  } finally { rendering=false; if(again){ const f=again; again=false; render(f===true) } }
 }
 function drawSel(){ if(!map||!map.getSource('sel')) return; const feats=sel==null?[]:FEAT.filter(f=>f.ti===sel&&f.side===1).map(f=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:f.co}})); map.getSource('sel').setData({type:'FeatureCollection',features:feats}) }
 function select(ti,pt){ sel=ti; drawSel(); sheet(); [...$('zones').children].forEach(el=>{const z=window._zones[+el.dataset.i]; if(z) el.setAttribute('aria-current',z.tr.i===zoneSel)});
-  if(pt&&map) map.flyTo({center:pt,zoom:Math.max(map.getZoom(),16.8),duration:700});
+  if(pt&&map){ follow(false); map.flyTo({center:pt,zoom:Math.max(map.getZoom(),16.8),duration:700}) }
   if(window.matchMedia('(max-width:899px)').matches) (pt?$('map'):$('sheet')).scrollIntoView({behavior:'smooth',block:pt?'start':'nearest'}) }
 function sheet(){
-  const el=$('sheet'); if(sel==null){el.innerHTML='';return}
+  const el=$('sheet'); if(sel==null||!TRS[sel]){el.innerHTML='';return}
   const tr=TRS[sel];
   const blocks=[1,-1].map(sd=>{ const S_=tr.sides[sd]; if(!S_.iv.length) return '';
-    if(!S_.signed) return `<div class="sd"><b style="color:${COL[S_.iv[0].s]}">Côté ${S_.name} : ${S_.iv[0].s===4?'aucun panneau répertorié, libre probable':'non évalué (artère sans panneau répertorié)'}</b></div>`;
+    if(!S_.signed) return `<div class="sd"><b style="color:${COL[S_.iv[0].s]}">Côté ${S_.name} : ${S_.iv[0].s===4?'aucun panneau répertorié, libre probable':tr.t.cv===0?'non évalué (signalisation du secteur peu répertoriée)':'non évalué (artère sans panneau répertorié)'}</b></div>`;
     const worst=Math.max(...S_.iv.map(v=>v.s));
     const head=S_.free>=tr.t.L-1?`libre sur toute la longueur (${Math.round(tr.t.L)} m)`:S_.free>0?`${Math.round(S_.free)} m libres sur ${Math.round(tr.t.L)} m`:worst===1?'gratuit, durée limitée':'aucune portion libre pendant la plage';
     const col=S_.free>0?COL[0]:worst===1?COL[1]:COL[3];
-    const rs=new Map(); S_.iv.forEach(v=>v.rs.forEach(i=>{ if(D.rules[i].c==='info') return; rs.set(i,(rs.get(i)||0)+(v.t1-v.t0)) }));
-    const rows=[...rs].sort((a,b)=>ACT[b[0]]-ACT[a[0]]).map(([i,len])=>{const r=D.rules[i],on=ACT[i]; return `<li class="${on?'':'off'}"><i class="dot" style="background:${on?COL[sev(r.c)]:'var(--line)'}"></i><span>${r.t} <span class="len">(${Math.round(len)} m${on?'':', ne s\'applique pas'})</span></span></li>`}).join('');
+    const rs=new Map(); S_.iv.forEach(v=>v.rs.forEach(i=>{ if(META.rules[i].c==='info') return; rs.set(i,(rs.get(i)||0)+(v.t1-v.t0)) }));
+    const rows=[...rs].sort((a,b)=>ACT[b[0]]-ACT[a[0]]).map(([i,len])=>{const r=META.rules[i],on=ACT[i],okLim=on&&r.c==='limite'&&r.d>=STAY;
+      return `<li class="${on&&!okLim?'':'off'}"><i class="dot" style="background:${on?COL[sev(r.c)]:'var(--line)'}"></i><span>${r.t} <span class="len">(${Math.round(len)} m${!on?', ne s\'applique pas':okLim?', suffisant pour votre durée':''})</span></span></li>`}).join('');
     return `<div class="sd"><b style="color:${col}">Côté ${S_.name} : ${head}</b><ul>${rows}</ul></div>` }).join('');
   const m=trMid(tr);
-  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m de la station</div>${blocks}${links(m[1],m[0],[1,-1].filter(sd=>tr.sides[sd].iv.length).map(sd=>sv(m[1],m[0],heading(tr,sd),'Street View côté '+tr.sides[sd].name,tr.i,sd)).join(''))}`;
+  el.innerHTML=`<button class="close" aria-label="Fermer" onclick="sel=null;zoneSel=null;drawSel();sheet()">×</button><h2 style="margin:0">${tr.t.n||'Voie sans nom'}</h2><div class="meta" style="margin-bottom:8px">${entre(tr.t)}${entre(tr.t)?', ':''}à ${Math.round(tr.dist/10)*10} m ${fromWhere()}</div>${blocks}${links(m[1],m[0],[1,-1].filter(sd=>tr.sides[sd].iv.length).map(sd=>sv(m[1],m[0],heading(tr,sd),'Street View côté '+tr.sides[sd].name,tr.i,sd)).join(''))}`;
+}
+
+// ---------- position GPS ----------
+let watchId=null, carMarker=null, lastFix=null, lastCalc=null, following=true, wakeLock=null, statusTimer=null;
+function setStatus(txt,on){ $('gpsStatus').innerHTML=`<i class="pulse${on?'':' off'}"></i><span>${txt}</span>` }
+function follow(on){ following=on; $('recenter').hidden=on||mode!=='gps'||!lastFix }
+async function keepAwake(){ try{ if('wakeLock' in navigator&&document.visibilityState==='visible'&&mode==='gps'&&watchId!=null) wakeLock=await navigator.wakeLock.request('screen') }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ keepAwake(); if(mode==='gps'&&lastFix) render(false) } });
+function startGps(){
+  if(!('geolocation' in navigator)){ setStatus('Géolocalisation non disponible sur cet appareil.',false); return }
+  if(watchId!=null) return;
+  $('gpsStart').hidden=true; setStatus('Recherche de votre position…',true);
+  watchId=navigator.geolocation.watchPosition(onFix,onGpsErr,{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+  keepAwake();
+  clearInterval(statusTimer); statusTimer=setInterval(()=>{ if(!lastFix||mode!=='gps') return; const s=Math.round((Date.now()-lastFix.t)/1000);
+    setStatus(`Position ±${Math.round(lastFix.acc)} m · mise à jour ${s<5?'à l\'instant':`il y a ${s<60?s+' s':Math.round(s/60)+' min'}`}`,s<60);
+    if(lastCalc&&Date.now()-lastCalc.t>60000) recalc(false) },5000);
+}
+function stopGps(){ if(watchId!=null) navigator.geolocation.clearWatch(watchId); watchId=null; clearInterval(statusTimer); try{wakeLock&&wakeLock.release()}catch(e){} wakeLock=null }
+function onGpsErr(e){
+  const msg=e.code===1?'Accès à la position refusé. Autorisez la localisation pour ce site dans les réglages du navigateur, puis réessayez.':e.code===3?'Position introuvable pour l\'instant (délai dépassé). Nouvel essai en cours…':'Position indisponible. Vérifiez que la localisation de l\'appareil est activée.';
+  setStatus(msg,false);
+  if(e.code===1){ stopGps(); $('gpsStart').hidden=false; $('gpsStart').textContent='Réessayer' }
+}
+function onFix(p){
+  const c=p.coords; lastFix={lat:c.latitude,lon:c.longitude,acc:c.accuracy,hd:c.heading,sp:c.speed,t:Date.now()};
+  if(map){
+    if(!carMarker){ const el=document.createElement('div'); el.className='car'; el.innerHTML='<div class="hd"></div><div class="cdot"></div>'; carMarker=new maplibregl.Marker({element:el,rotationAlignment:'map'}) }
+    carMarker.setLngLat([c.longitude,c.latitude]).addTo(map);
+    const moving=c.heading!=null&&!isNaN(c.heading)&&(c.speed||0)>1; carMarker.getElement().classList.toggle('moving',moving); if(moving) carMarker.setRotation(c.heading);
+    map.getSource('acc')&&map.getSource('acc').setData({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[circle({lat:c.latitude,lon:c.longitude},Math.min(c.accuracy,500))]}});
+  }
+  if(mode!=='gps') return;
+  setStatus(`Position ±${Math.round(c.accuracy)} m · mise à jour à l'instant`,true);
+  const first=!lastCalc;
+  if(first||distM(c.latitude,c.longitude,lastCalc)>40) recalc(first);
+  else if(following&&map) map.easeTo({center:[c.longitude,c.latitude],duration:800});
+}
+function recalc(fly){ if(!lastFix) return; CENTER={lat:lastFix.lat,lon:lastFix.lon}; lastCalc={...CENTER,t:Date.now()};
+  if(following&&map&&!fly) map.easeTo({center:[CENTER.lon,CENTER.lat],duration:800});
+  follow(following); render(fly) }
+
+// ---------- modes ----------
+function setMode(m,initial){
+  mode=m; store.set('mode',m);
+  $('mGps').setAttribute('aria-pressed',m==='gps'); $('mSt').setAttribute('aria-pressed',m==='station');
+  $('gpsBox').hidden=m!=='gps'; $('stBox').hidden=m!=='station';
+  sel=null; zoneSel=null; $('err').textContent='';
+  if(m==='gps'){
+    follow(true);
+    if(lastFix&&watchId!=null){ recalc(true); return }
+    CENTER=null; $('zones').innerHTML=''; $('tally').innerHTML=''; $('warn').textContent='';
+    if(map&&map.getSource('p')){ map.getSource('p').setData({type:'FeatureCollection',features:[]}); map.getSource('ring').setData({type:'FeatureCollection',features:[]}) }
+    const auto=()=>startGps();
+    if(navigator.permissions&&navigator.permissions.query) navigator.permissions.query({name:'geolocation'}).then(r=>{ if(r.state==='granted') auto(); else if(r.state==='denied') onGpsErr({code:1}) }).catch(()=>{});
+    if(!initial&&watchId==null) auto();       // geste de l'utilisateur : on demande tout de suite
+  } else {
+    $('recenter').hidden=true;
+    const s=META.stations[st]; CENTER={lat:s.lat,lon:s.lon}; render(true);
+  }
 }
 
 // ---------- Street View intégré ----------
 let svMarker=null;
 function openSV(lat,lon,h,ti,sd){
-  const tr=TRS[ti];
+  const tr=TRS[ti]; if(!tr) return;
+  follow(false);
   $('svtitle').textContent=`${tr.t.n}, côté ${tr.sides[sd].name}`;
   $('sviframe').src=`https://www.google.com/maps/embed/v1/streetview?key=${encodeURIComponent(GMAPS_EMBED_KEY)}&location=${lat.toFixed(6)},${lon.toFixed(6)}&heading=${h}&pitch=5&fov=80`;
   $('svext').href=svUrl(lat,lon,h);
@@ -251,17 +403,16 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('svbox').classLi
 
 // ---------- carte ----------
 function initMap(){
-  const s=D.stations[st];
+  const s=META.stations[st];
   map=new maplibregl.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:{compact:true}});
   map.addControl(new maplibregl.NavigationControl({showCompass:true}),'top-right');
-  map.addControl(new maplibregl.GeolocateControl({positionOptions:{enableHighAccuracy:true},trackUserLocation:true}),'top-right');
+  map.on('dragstart',()=>{ if(mode==='gps') follow(false) });
   map.on('load',()=>{
     $('loading')?.remove();
     const off=['interpolate',['exponential',1.6],['zoom'],13,['*',['get','o'],0.8],16,['*',['get','o'],3.2],19,['*',['get','o'],11]];
     const wid=['interpolate',['exponential',1.6],['zoom'],13,1,16,3,19,9];
-    map.addSource('p',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-    map.addSource('ring',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-    map.addSource('sel',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    for(const id of ['p','ring','sel','acc']) map.addSource(id,{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    map.addLayer({id:'acc',type:'fill',source:'acc',paint:{'fill-color':'#1C6FD6','fill-opacity':.1}});
     map.addLayer({id:'ring',type:'line',source:'ring',paint:{'line-color':'#16201A','line-opacity':.45,'line-width':1.5,'line-dasharray':[3,3]}});
     map.addLayer({id:'sel',type:'line',source:'sel',paint:{'line-color':'#16201A','line-opacity':.16,'line-width':['interpolate',['linear'],['zoom'],13,8,16,18,19,40]},layout:{'line-cap':'round','line-join':'round'}});
     const color=['match',['get','s'],0,COL[0],1,COL[1],2,COL[2],3,COL[3],4,COL[4],COL[5]];
@@ -272,10 +423,11 @@ function initMap(){
     map.on('click','hit',e=>{ const f=e.features[0]; if(f){ zoneSel=null; select(f.properties.ti) } });
     map.on('mouseenter','hit',()=>map.getCanvas().style.cursor='pointer');
     map.on('mouseleave','hit',()=>map.getCanvas().style.cursor='');
-    D.stations.forEach((s,i)=>{ const el=document.createElement('div'); el.innerHTML=`<div class="st-marker"></div><div class="st-label" style="position:absolute;left:0;top:0">${s.n}</div>`;
-      el.querySelector('.st-marker').onclick=e=>{e.stopPropagation(); st=i; sel=null; zoneSel=null; render(true)};
+    META.stations.forEach((s,i)=>{ const el=document.createElement('div'); el.innerHTML=`<div class="st-marker"></div><div class="st-label" style="position:absolute;left:0;top:0">${s.n}</div>`;
+      el.querySelector('.st-marker').onclick=e=>{e.stopPropagation(); st=i; if(mode!=='station') setMode('station'); else { sel=null; zoneSel=null; CENTER={lat:s.lat,lon:s.lon}; render(true) } };
       markers.push(new maplibregl.Marker({element:el}).setLngLat([s.lon,s.lat]).addTo(map)) });
-    render(true);
+    if(lastFix) onFix({coords:{latitude:lastFix.lat,longitude:lastFix.lon,accuracy:lastFix.acc,heading:lastFix.hd,speed:lastFix.sp}});
+    if(CENTER) render(true);
   });
   map.on('error',e=>{ if(!map.isStyleLoaded()&&$('loading')) $('loading').textContent='Le fond de carte n\'a pas pu être chargé.' });
 }
@@ -288,13 +440,19 @@ function initMap(){
   slot.appendChild($('lower').content.cloneNode(true));
   if(slot===$('deskSlot')) slot.classList.remove('only-desk');
   $('legend').innerHTML=[0,4,1,2,3,5].map(k=>`<span><i style="background:${COL[k]}"></i>${LAB[k]}</span>`).join('');
-  D=await (await fetch('data.json')).json();
-  $('gen').textContent=new Date(D.generated+'T12:00').toLocaleDateString('fr-CA',{day:'numeric',month:'long',year:'numeric'});
-  D.stations.forEach((s,i)=>{const b=document.createElement('button');b.textContent=s.n;b.onclick=()=>{st=i;sel=null;zoneSel=null;render(true)};$('stations').appendChild(b)});
+  META=await (await fetch('data/meta.json')).json(); META.tileSet=new Set(META.tiles);
+  $('gen').textContent=new Date(META.generated+'T12:00').toLocaleDateString('fr-CA',{day:'numeric',month:'long',year:'numeric'});
+  META.stations.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.textContent=s.n;b.onclick=()=>{st=i;sel=null;zoneSel=null;CENTER={lat:s.lat,lon:s.lon};render(true)};$('stations').appendChild(b)});
   ['date','t1','t2'].forEach(id=>$(id).addEventListener('change',()=>render(false)));
   $('rad').addEventListener('change',()=>render(true));
+  $('dur').addEventListener('change',()=>{ store.set('dur',$('dur').value); render(false) });
+  $('gRad').addEventListener('change',()=>{ store.set('gRad',$('gRad').value); render(true) });
+  $('mGps').onclick=()=>setMode('gps'); $('mSt').onclick=()=>setMode('station');
+  $('gpsStart').onclick=()=>{ $('gpsStart').textContent='Activer ma position'; startGps() };
+  $('recenter').onclick=()=>{ follow(true); if(lastFix) recalc(false); };
   $('svclose').onclick=closeSV;
   initMap();
+  setMode(mode,true);
 })();
 </script>
 </body>
