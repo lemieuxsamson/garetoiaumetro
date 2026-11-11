@@ -23,6 +23,8 @@ Couverture : la densité de poteaux par km de rue est calculée par arrondisseme
 
 Limites : **les places tarifées (bornes) ne sont pas incluses**, le tarif n'étant pas indiqué par des panneaux; les libellés de panneaux sont interprétés automatiquement; les opérations de déneigement ne sont pas incluses; « jours d'école » est approximé à lun.-ven., sept. à juin. **Outil non officiel : la signalisation sur place a toujours préséance.**
 
+**Suivi du véhicule** : en mode « Autour de moi », la carte suit le véhicule et tourne avec sa direction (véhicule placé dans le bas de l'écran pour voir devant). La direction vient du GPS en mouvement, ou est déduite de deux positions successives. Le bouton « Direction en haut / Nord en haut » change l'orientation; déplacer ou tourner la carte à la main suspend le suivi jusqu'à « Recentrer sur moi ».
+
 **Simulation** : en mode « Autour de moi », le lien « Simuler une position » met le GPS réel en pause. On touche la carte pour placer le véhicule, on le glisse pour le faire rouler (la flèche suit la direction, le calcul se refait tous les 40 m), et on peut choisir une heure simulée qui avance ensuite avec l'horloge. L'URL garde la position et l'heure simulées (`#m=gps&sim=45.5845,-73.5409&t=2026-11-06T10:00`), pratique pour partager un scénario de test.
 
 La localisation exige HTTPS (fourni par GitHub Pages) et l'autorisation du navigateur. En mode GPS, la page garde l'écran allumé quand le navigateur le permet.
