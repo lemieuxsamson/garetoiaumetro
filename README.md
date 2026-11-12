@@ -38,7 +38,7 @@ La localisation exige HTTPS (fourni par GitHub Pages) et l'autorisation du navig
 
 ## Fond Mapbox et recherche d'adresse (jeton Mapbox)
 
-Avec un jeton Mapbox, la carte utilise Mapbox GL JS (style *Light*) et le mode « Station ou adresse » offre une recherche d'adresse (Mapbox Geocoding, limitée à l'île de Montréal). Sans jeton, la page revient à MapLibre + OpenFreeMap, sans recherche.
+Avec un jeton Mapbox, la carte utilise Mapbox GL JS (style *Standard* : bâtiments, arbres, points d'intérêt) et le mode « Station ou adresse » offre une recherche d'adresse (Mapbox Geocoding, limitée à l'île de Montréal). Sans jeton, la page revient à MapLibre + OpenFreeMap, sans recherche.
 
 1. Sur [account.mapbox.com](https://account.mapbox.com/access-tokens/), créer un jeton **public** (`pk.…`), portées par défaut seulement.
 2. Dans *URL restrictions*, ajouter `https://garetoiaumetro.lemieuxsamson.com` (et `http://localhost:8000` pour les tests locaux).

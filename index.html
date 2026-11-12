@@ -226,7 +226,7 @@ const refused=e=>{ const er=e&&e.error||{}, s=er.status, m=String(er.message||''
   return [401,403,429].includes(s)||(/api\.mapbox\.com|mapbox:\/\//.test(u+m)&&/401|403|429|unauthori|forbidden|too many|limit/i.test(m)) };
 async function loadMapLib(){
   if(MAPBOX_TOKEN&&!mapboxBlocked()){ try{ loadCss(MBX+'mapbox-gl.css'); await loadScript(MBX+'mapbox-gl.js');
-    mapboxgl.accessToken=MAPBOX_TOKEN; GL=mapboxgl; STYLE='mapbox://styles/mapbox/light-v11'; return }catch(e){ console.warn('Mapbox indisponible, repli sur MapLibre') } }
+    mapboxgl.accessToken=MAPBOX_TOKEN; GL=mapboxgl; STYLE='mapbox://styles/mapbox/standard'; return }catch(e){ console.warn('Mapbox indisponible, repli sur MapLibre') } }
   loadCss(MLB+'maplibre-gl.css'); await loadScript(MLB+'maplibre-gl.js'); GL=maplibregl }
 const COL={0:'#1C9A55',4:'#7CC79C',1:'#D6931A',2:'#2F6BD6',3:'#CC3A2F',5:'#B4BCB6'};
 const LAB={0:'Libre (panneaux vérifiés)',4:'Sans panneau, libre probable',1:'Gratuit, durée limitée',2:'Tarifé',3:'Interdit ou réservé',5:'Non évalué'};
@@ -576,9 +576,12 @@ document.addEventListener('click',e=>{ const b=e.target.closest('button.sv'); if
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('svbox').classList.contains('on')) closeSV() });
 
 // ---------- carte ----------
+const slot=o=>GL===window.mapboxgl?{...o,slot:o.id==='hit'?'top':'middle'}:o;
 function initMap(){
   const s=mode==='station'?stCenter():META.stations[Math.max(st,0)];
-  map=new GL.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:false});
+  const mbx=GL===window.mapboxgl;
+  map=new GL.Map({container:'map',style:STYLE,center:[s.lon,s.lat],zoom:14.5,attributionControl:false,
+    ...(mbx?{config:{basemap:{lightPreset:'day',showPointOfInterestLabels:true,showTransitLabels:true}}}:{})});
   map.addControl(new GL.AttributionControl({compact:true}));
   map.addControl(new GL.NavigationControl({showCompass:true}),'top-right');
   map.on('dragstart',()=>{ if(mode==='gps') follow(false) });
@@ -587,14 +590,14 @@ function initMap(){
     $('loading')?.remove();
     const {off,wid}=lineStyle();
     for(const id of ['p','ring','sel','acc']) map.addSource(id,{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-    map.addLayer({id:'acc',type:'fill',source:'acc',paint:{'fill-color':'#1C6FD6','fill-opacity':.1}});
-    map.addLayer({id:'ring',type:'line',source:'ring',paint:{'line-color':'#16201A','line-opacity':.45,'line-width':1.5,'line-dasharray':[3,3]}});
-    map.addLayer({id:'sel',type:'line',source:'sel',paint:{'line-color':'#16201A','line-opacity':.16,'line-width':['interpolate',['linear'],['zoom'],13,8,16,18,19,40]},layout:{'line-cap':'round','line-join':'round'}});
+    map.addLayer(slot({id:'acc',type:'fill',source:'acc',paint:{'fill-color':'#1C6FD6','fill-opacity':.1}}));
+    map.addLayer(slot({id:'ring',type:'line',source:'ring',paint:{'line-color':'#16201A','line-opacity':.45,'line-width':1.5,'line-dasharray':[3,3]}}));
+    map.addLayer(slot({id:'sel',type:'line',source:'sel',paint:{'line-color':'#16201A','line-opacity':.16,'line-width':['interpolate',['linear'],['zoom'],13,8,16,18,19,40]},layout:{'line-cap':'round','line-join':'round'}}));
     const color=['match',['get','s'],0,COL[0],1,COL[1],2,COL[2],3,COL[3],4,COL[4],COL[5]];
     const opac=['case',['==',['get','in'],1],1,.35];
-    map.addLayer({id:'p',type:'line',source:'p',filter:['!=',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac}});
-    map.addLayer({id:'p4',type:'line',source:'p',filter:['==',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac,'line-dasharray':[2,1]}});
-    map.addLayer({id:'hit',type:'line',source:'p',paint:{'line-color':'#000','line-opacity':0,'line-width':18}});
+    map.addLayer(slot({id:'p',type:'line',source:'p',filter:['!=',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac}}));
+    map.addLayer(slot({id:'p4',type:'line',source:'p',filter:['==',['get','s'],4],layout:{'line-join':'round'},paint:{'line-color':color,'line-width':wid,'line-offset':off,'line-opacity':opac,'line-dasharray':[2,1]}}));
+    map.addLayer(slot({id:'hit',type:'line',source:'p',paint:{'line-color':'#000','line-opacity':0,'line-width':18}}));
     map.on('click','hit',e=>{ if(SIM&&mode==='gps') return; const f=e.features[0]; if(f){ zoneSel=null; select(f.properties.ti) } });
     map.on('click',e=>{ if(SIM&&mode==='gps'){ follow(true); simFeed(e.lngLat.lat,e.lngLat.lng,lastFix&&lastFix.hd,0) } });
     map.on('mouseenter','hit',()=>map.getCanvas().style.cursor='pointer');
