@@ -25,6 +25,8 @@ Limites : **les places tarifées (bornes) ne sont pas incluses**, le tarif n'ét
 
 **Suivi du véhicule** : en mode « Autour de moi », la carte suit le véhicule et tourne avec sa direction (véhicule placé dans le bas de l'écran pour voir devant). La direction vient du GPS en mouvement, ou est déduite de deux positions successives. Le bouton « Direction en haut / Nord en haut » change l'orientation; déplacer ou tourner la carte à la main suspend le suivi jusqu'à « Recentrer sur moi ».
 
+**Plein écran** : le bouton en haut à gauche de la carte l'affiche sur tout l'écran (le détail d'une rue s'ouvre alors par-dessus la carte). Sur Android et ordinateur, la barre du navigateur est aussi masquée. Sur iPhone, Safari ne permet pas de masquer sa barre : pour un vrai plein écran, ajouter le site à l'écran d'accueil (*Partager → Sur l'écran d'accueil*); il s'ouvre alors comme une appli, directement en mode « Autour de moi ».
+
 **Simulation** : en mode « Autour de moi », le lien « Simuler une position » met le GPS réel en pause. On touche la carte pour placer le véhicule, on le glisse pour le faire rouler (la flèche suit la direction, le calcul se refait tous les 40 m), et on peut choisir une heure simulée qui avance ensuite avec l'horloge. L'URL garde la position et l'heure simulées (`#m=gps&sim=45.5845,-73.5409&t=2026-11-06T10:00`), pratique pour partager un scénario de test.
 
 La localisation exige HTTPS (fourni par GitHub Pages) et l'autorisation du navigateur. En mode GPS, la page garde l'écran allumé quand le navigateur le permet.

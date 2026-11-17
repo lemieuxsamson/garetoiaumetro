@@ -6,6 +6,12 @@
 <title>Gare-toi au métro</title>
 <meta name="description" content="Carte des côtés de rue où le stationnement est probablement gratuit et permis à Montréal, autour de votre position ou d'une station de métro, selon l'heure.">
 <meta name="theme-color" content="#16201A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gare-toi">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🅿️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,6 +53,20 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .legend{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;color:var(--soft)}
 .legend i{width:20px;height:5px;border-radius:3px;flex:0 0 auto}
 #map{position:relative;min-height:320px}
+.fsbtn{position:absolute;top:10px;left:10px;z-index:6;width:40px;height:40px;border:0;border-radius:10px;background:#fff;color:#16201A;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+.fsbtn svg{width:20px;height:20px}
+body.fs{overflow:hidden}
+body.fs #map{position:fixed;inset:0;z-index:50;min-height:0;height:100%;height:100dvh;background:var(--paper)}
+body.fs .side{visibility:hidden}
+body.fs #sheet{visibility:visible}
+body.fs .fsbtn{top:calc(10px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px))}
+body.fs .mapbtns{bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+body.fs .maplibregl-ctrl-top-right,body.fs .mapboxgl-ctrl-top-right{margin-top:env(safe-area-inset-top,0px)}
+body.fs #sheet:not(:empty){position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:60;max-height:45vh;overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+@media(min-width:900px){body.fs #sheet:not(:empty){left:auto;right:12px;width:380px;bottom:12px;max-height:70vh}}
+.fschip{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:60px;right:60px;z-index:6;justify-self:center;display:none;justify-content:center;pointer-events:none}
+.fschip span{background:rgba(255,255,255,.94);color:#16201A;border-radius:999px;padding:6px 12px;font:600 13px "Barlow",sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+body.fs .fschip{display:flex}
 h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
 .zones{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .zone{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:5px;cursor:pointer}
@@ -174,6 +194,8 @@ h2{font:700 20px "Barlow Condensed",sans-serif;margin:0 0 8px}
  </aside>
  <div id="map"><div class="loading" id="loading">Chargement de la carte…</div>
   <div class="tiles-loading" id="tl" hidden>Chargement des rues…</div>
+  <button type="button" class="fsbtn" id="fsBtn" aria-pressed="false" aria-label="Carte en plein écran" title="Plein écran"></button>
+  <div class="fschip" aria-live="polite"><span id="fsInfo"></span></div>
   <div class="mapbtns">
    <button type="button" class="recenter" id="hdgBtn" hidden aria-pressed="true" title="Orientation de la carte"></button>
    <button type="button" class="recenter" id="recenter" hidden>Recentrer sur moi</button>
@@ -366,13 +388,34 @@ async function render(fly){
       if(mode==='gps'&&following&&lastFix) camFollow({zoom:gpsZoom(R),duration:900});
       else { const c=circle(CENTER,R); map.fitBounds([[Math.min(...c.map(q=>q[0])),Math.min(...c.map(q=>q[1]))],[Math.max(...c.map(q=>q[0])),Math.max(...c.map(q=>q[1]))]],{padding:{top:16,bottom:16,left:16,right:16},bearing:0,duration:900,maxZoom:17}) } }
   }
-  sheet();
+  sheet(); fsInfo();
   } finally { rendering=false; if(again){ const f=again; again=false; render(f===true) } }
 }
 function drawSel(){ if(!map||!map.getSource('sel')) return; const feats=sel==null?[]:FEAT.filter(f=>f.ti===sel&&f.side===1).map(f=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:f.co}})); map.getSource('sel').setData({type:'FeatureCollection',features:feats}) }
+// ---------- plein écran ----------
+const FS_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const FS_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+const isFs=()=>document.body.classList.contains('fs');
+function setFs(on){
+  if(on) window.scrollTo(0,0);
+  document.body.classList.toggle('fs',on);
+  const b=$('fsBtn'); b.innerHTML=on?FS_OFF:FS_ON; b.setAttribute('aria-pressed',on); b.setAttribute('aria-label',on?'Quitter le plein écran':'Carte en plein écran'); b.title=on?'Quitter le plein écran':'Plein écran';
+  // API plein écran du navigateur quand elle existe (Android, ordinateur); sur iPhone, le mode CSS suffit
+  const de=document.documentElement;
+  try{ if(on&&!document.fullscreenElement&&de.requestFullscreen) de.requestFullscreen({navigationUI:'hide'}).catch(()=>{});
+       if(!on&&document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}) }catch(e){}
+  fsInfo();
+  setTimeout(()=>{ if(map){ map.resize(); camFollow({duration:300}) } if(!on&&window.matchMedia('(max-width:899px)').matches) $('map').scrollIntoView({block:'start'}) },60);
+}
+document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement&&isFs()) setFs(false) });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&isFs()&&!$('svbox').classList.contains('on')&&!document.fullscreenElement) setFs(false) });
+function fsInfo(){ const el=$('fsInfo'); if(!el) return;
+  if(mode==='gps'){ const {a,b}=segments(); el.textContent=lastFix?`Libre de ${fmtT(a)} à ${fmtT(b)}${SIM?' · simulation':''}`:'Position inactive' }
+  else el.textContent=PT?PT.n:(META&&META.stations[st]?META.stations[st].n:'') }
+
 function select(ti,pt){ sel=ti; drawSel(); sheet(); [...$('zones').children].forEach(el=>{const z=window._zones[+el.dataset.i]; if(z) el.setAttribute('aria-current',z.tr.i===zoneSel)});
   if(pt&&map){ follow(false); map.flyTo({center:pt,zoom:Math.max(map.getZoom(),16.8),duration:700}) }
-  if(window.matchMedia('(max-width:899px)').matches) (pt?$('map'):$('sheet')).scrollIntoView({behavior:'smooth',block:pt?'start':'nearest'}) }
+  if(!isFs()&&window.matchMedia('(max-width:899px)').matches) (pt?$('map'):$('sheet')).scrollIntoView({behavior:'smooth',block:pt?'start':'nearest'}) }
 function sheet(){
   const el=$('sheet'); if(sel==null||!TRS[sel]){el.innerHTML='';return}
   const tr=TRS[sel];
@@ -569,7 +612,7 @@ function openSV(lat,lon,h,ti,sd){
     svMarker.setLngLat([lon,lat]).setRotation(h).addTo(map);
     map.easeTo({center:[lon,lat],zoom:Math.max(map.getZoom(),17),padding:{bottom:$('map').clientHeight*0.55},duration:600});
   }
-  if(window.matchMedia('(max-width:899px)').matches) $('map').scrollIntoView({behavior:'smooth',block:'start'});
+  if(!isFs()&&window.matchMedia('(max-width:899px)').matches) $('map').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function closeSV(){ $('svbox').classList.remove('on'); $('sviframe').src='about:blank'; if(svMarker) svMarker.remove(); if(map) map.easeTo({padding:{bottom:0},duration:400}) }
 document.addEventListener('click',e=>{ const b=e.target.closest('button.sv'); if(!b) return; e.stopPropagation(); openSV(+b.dataset.lat,+b.dataset.lon,+b.dataset.h,+b.dataset.ti,+b.dataset.sd) });
@@ -632,6 +675,7 @@ function initMap(){
   $('mGps').onclick=()=>setMode('gps'); $('mSt').onclick=()=>setMode('station');
   $('gpsStart').onclick=()=>{ $('gpsStart').textContent='Activer ma position'; startGps() };
   $('recenter').onclick=()=>{ follow(true); if(lastFix) recalc(false); };
+  $('fsBtn').innerHTML=FS_ON; $('fsBtn').onclick=()=>setFs(!isFs());
   $('hdgBtn').onclick=()=>{ hdgUp=!hdgUp; store.set('hdg',hdgUp?'1':'0'); follow(true); camFollow({duration:500}) };
   $('svclose').onclick=closeSV;
   $('simBtn').onclick=()=>enterSim(); $('simQuit').onclick=exitSim;

@@ -34,8 +34,8 @@ jobs:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: |
           mkdir _site
-          cp index.html _site/
-          cp -r data _site/
+          cp index.html manifest.webmanifest _site/
+          cp -r data icons _site/
           [ -f CNAME ] && cp CNAME _site/
           python3 -c "import json,os; print('window.APP_CONFIG = ' + json.dumps({k: os.environ.get(k,'') for k in ('GMAPS_EMBED_KEY','MAPBOX_TOKEN')}) + ';')" > _site/config.js
       - uses: actions/configure-pages@v5
