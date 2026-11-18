@@ -80,6 +80,10 @@ python scripts/build_data.py signalisation_stationnement.csv geobase.json data
 
 Pour ajouter des stations, modifier la liste `STATIONS` au début de `scripts/build_data.py`.
 
+## Recréer l'application
+
+`PROMPT.md` décrit l'application assez précisément pour la recréer de zéro avec un assistant IA. Il est tenu à jour à chaque changement fonctionnel (voir `CLAUDE.md`).
+
 ## Licences
 
 - Code (`index.html`, `scripts/`) : licence MIT, voir `LICENSE`.
